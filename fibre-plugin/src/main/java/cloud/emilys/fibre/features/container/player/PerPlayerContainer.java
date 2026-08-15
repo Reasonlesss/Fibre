@@ -29,6 +29,7 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
     private final Players players;
     private final Map<UUID, Scope> scopes = new LinkedHashMap<>();
     private @Nullable Scope parent;
+    private boolean active;
 
     public PerPlayerContainer(ObjectKey valueKey, Players players) {
         this.valueKey = valueKey;
@@ -40,6 +41,17 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
             throw new IllegalStateException("Per-player container is already initialized");
         }
         this.parent = parent;
+    }
+
+    public void activate() {
+        Scope parent = this.parent;
+        if (parent == null) {
+            throw new IllegalStateException("Per-player container is not initialized");
+        }
+        if (this.active) {
+            throw new IllegalStateException("Per-player container is already active");
+        }
+        this.active = true;
         for (Player player : this.players.getPlayers()) {
             this.add(player);
         }
@@ -49,6 +61,9 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
     @Override
     @SuppressWarnings("unchecked")
     public T get(Player player) {
+        if (!this.active) {
+            throw new IllegalStateException("Per-player container is not active during scope configuration");
+        }
         Scope scope = this.scopes.get(player.getUniqueId());
         if (scope == null) {
             throw new IllegalArgumentException("Player is not tracked by this container");
@@ -111,6 +126,7 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
         HandlerList.unregisterAll(this);
         ResourceCleanup.closeAllQuietly(List.copyOf(this.scopes.values()));
         this.scopes.clear();
+        this.active = false;
         this.parent = null;
     }
 }

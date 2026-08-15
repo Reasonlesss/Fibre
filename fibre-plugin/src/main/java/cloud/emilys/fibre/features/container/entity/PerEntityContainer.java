@@ -20,6 +20,7 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
     private final ObjectKey valueKey;
     private final Map<UUID, Scope> scopes = new LinkedHashMap<>();
     private @Nullable Scope parent;
+    private boolean active;
 
     public PerEntityContainer(ObjectKey valueKey) {
         this.valueKey = valueKey;
@@ -32,9 +33,22 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
         this.parent = parent;
     }
 
+    public void activate() {
+        if (this.parent == null) {
+            throw new IllegalStateException("Per-entity container is not initialized");
+        }
+        if (this.active) {
+            throw new IllegalStateException("Per-entity container is already active");
+        }
+        this.active = true;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public T get(Entity entity) {
+        if (!this.active) {
+            throw new IllegalStateException("Per-entity container is not active during scope configuration");
+        }
         Scope scope = this.scopes.get(entity.getUniqueId());
         if (scope == null) {
             throw new IllegalArgumentException("Entity is not tracked by this container");
@@ -44,6 +58,9 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
 
     @Override
     public void track(Entity entity) {
+        if (!this.active) {
+            throw new IllegalStateException("Per-entity container is not active during scope configuration");
+        }
         UUID entityId = entity.getUniqueId();
         if (this.scopes.containsKey(entityId)) {
             return;
@@ -66,6 +83,9 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
 
     @Override
     public void untrack(Entity entity) {
+        if (!this.active) {
+            throw new IllegalStateException("Per-entity container is not active during scope configuration");
+        }
         UUID entityId = entity.getUniqueId();
         Scope scope = this.scopes.get(entityId);
         if (scope == null) {
@@ -78,6 +98,7 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
     public void close() {
         ResourceCleanup.closeAllQuietly(List.copyOf(this.scopes.values()));
         this.scopes.clear();
+        this.active = false;
         this.parent = null;
     }
 }
