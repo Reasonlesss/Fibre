@@ -6,6 +6,7 @@ import cloud.emilys.fibre.api.scope.Scope;
 import cloud.emilys.fibre.api.scope.creation.ScopeBlueprint;
 import cloud.emilys.fibre.api.scope.creation.ScopeFactory;
 import cloud.emilys.fibre.core.util.ResourceCleanup;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,27 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
             throw new IllegalArgumentException("Entity is not tracked by this container");
         }
         return (T) scope.require(this.valueKey).getObject();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Iterator<T> iterator() {
+        if (!this.active) {
+            throw new IllegalStateException("Per-entity container is not active during scope configuration");
+        }
+        Iterator<Scope> scopes = this.scopes.values().iterator();
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return scopes.hasNext();
+            }
+
+            @Override
+            public T next() {
+                //noinspection resource
+                return (T) scopes.next().require(PerEntityContainer.this.valueKey).getObject();
+            }
+        };
     }
 
     @Override
