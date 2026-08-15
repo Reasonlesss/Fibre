@@ -4,7 +4,7 @@ import org.bukkit.entity.Entity;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
-public interface PerEntity<T> {
+public interface PerEntity<T> extends Iterable<T> {
 
     T get(Entity entity);
 
