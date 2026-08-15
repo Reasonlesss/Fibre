@@ -1,7 +1,7 @@
 package codes.reason.fibre.core.scope.binding;
 
-import codes.reason.fibre.api.scope.ObjectKey;
 import codes.reason.fibre.api.scope.DependencyCycleException;
+import codes.reason.fibre.api.scope.ObjectKey;
 import codes.reason.fibre.api.scope.binding.DependencySet;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

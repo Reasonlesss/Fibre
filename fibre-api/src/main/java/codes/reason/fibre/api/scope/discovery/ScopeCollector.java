@@ -15,6 +15,8 @@ public interface ScopeCollector {
 
     void initialize(ObjectKey object, ObjectInitializer initializer);
 
+    void activate(ObjectKey object, ObjectInitializer initializer);
+
     void postInitialize(ObjectKey object, ObjectInitializer initializer);
 
     void visit(ObjectKey object);

@@ -23,6 +23,7 @@ public final class ScopeCollectorImpl implements ScopeCollector {
     private final FibreImpl api;
     private final Map<ObjectKey, Binding> bindings = new LinkedHashMap<>();
     private final Map<ObjectKey, List<ObjectInitializer>> initializers = new LinkedHashMap<>();
+    private final Map<ObjectKey, List<ObjectInitializer>> activators = new LinkedHashMap<>();
     private final Map<ObjectKey, List<ObjectInitializer>> postInitializers = new LinkedHashMap<>();
     private final Set<ObjectKey> visited = new HashSet<>();
 
@@ -56,6 +57,13 @@ public final class ScopeCollectorImpl implements ScopeCollector {
     }
 
     @Override
+    public void activate(ObjectKey object, ObjectInitializer initializer) {
+        Objects.requireNonNull(object, "object");
+        Objects.requireNonNull(initializer, "initializer");
+        this.activators.computeIfAbsent(object, _ -> new ArrayList<>()).add(initializer);
+    }
+
+    @Override
     public void postInitialize(ObjectKey object, ObjectInitializer initializer) {
         Objects.requireNonNull(object, "object");
         Objects.requireNonNull(initializer, "initializer");
@@ -81,6 +89,7 @@ public final class ScopeCollectorImpl implements ScopeCollector {
                     this.getFactsFor(entry.getKey()),
                     entry.getValue(),
                     List.copyOf(this.initializers.getOrDefault(entry.getKey(), List.of())),
+                    List.copyOf(this.activators.getOrDefault(entry.getKey(), List.of())),
                     List.copyOf(this.postInitializers.getOrDefault(entry.getKey(), List.of()))));
         }
         return objects;

@@ -13,4 +13,5 @@ public record ScopeDefinition(
         Facts facts,
         Binding binding,
         List<ObjectInitializer> initializers,
+        List<ObjectInitializer> activators,
         List<ObjectInitializer> postInitializers) {}
