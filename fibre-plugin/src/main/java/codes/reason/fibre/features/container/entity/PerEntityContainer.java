@@ -73,7 +73,8 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
             @Override
             public T next() {
                 //noinspection resource
-                return (T) scopes.next().require(PerEntityContainer.this.valueKey).getObject();
+                return (T)
+                        scopes.next().require(PerEntityContainer.this.valueKey).getObject();
             }
         };
     }

@@ -4,13 +4,18 @@ import codes.reason.fibre.api.Fibre;
 import codes.reason.fibre.api.FibreStartupRegistry;
 import codes.reason.fibre.api.fact.FactIndex;
 import codes.reason.fibre.api.game.GameManager;
+import codes.reason.fibre.api.game.PlayerJoinToken;
+import codes.reason.fibre.api.game.PlayerPreloader;
 import codes.reason.fibre.api.scope.discovery.ScopeContributor;
 import codes.reason.fibre.api.scope.lifecycle.ScopeInitializer;
 import codes.reason.fibre.api.type.TypeResolver;
 import codes.reason.fibre.core.fact.FactIndexImpl;
 import codes.reason.fibre.core.game.GameManagerImpl;
 import codes.reason.fibre.core.type.TypeResolverImpl;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
@@ -18,10 +23,15 @@ import org.jspecify.annotations.Nullable;
 public final class FibreImpl implements Fibre {
 
     private final FibreStartupRegistryImpl registry = new FibreStartupRegistryImpl();
-    private final GameManager gameManager = new GameManagerImpl(this);
+    private final GameManagerImpl gameManager;
+    private List<Consumer<PlayerJoinToken>> playerJoinInitializers = new ArrayList<>();
     private @Nullable FactIndex factIndex;
     private @Nullable TypeResolver typeResolver;
     private boolean ready;
+
+    public FibreImpl() {
+        this.gameManager = new GameManagerImpl(this, this::initializePlayerJoinToken);
+    }
 
     @Override
     public FibreStartupRegistry getStartupRegistry() {
@@ -42,6 +52,20 @@ public final class FibreImpl implements Fibre {
             throw new IllegalStateException("getScopeContributors must be called after Fibre has been enabled.");
         }
         return this.registry.getScopeContributors();
+    }
+
+    public List<PlayerPreloader> getPlayerPreloaders() {
+        if (!this.ready) {
+            throw new IllegalStateException("getPlayerPreloaders must be called after Fibre has been enabled.");
+        }
+        return this.registry.getPlayerPreloaders();
+    }
+
+    public void registerPlayerJoinInitializer(Consumer<PlayerJoinToken> initializer) {
+        if (this.ready) {
+            throw new IllegalStateException("Player join initializers must be registered before Fibre is enabled.");
+        }
+        this.playerJoinInitializers.add(Objects.requireNonNull(initializer, "initializer"));
     }
 
     public List<ScopeInitializer> getScopeInitializers() {
@@ -67,6 +91,7 @@ public final class FibreImpl implements Fibre {
 
     public void finishSetup() {
         this.registry.freeze();
+        this.playerJoinInitializers = List.copyOf(this.playerJoinInitializers);
         this.factIndex = new FactIndexImpl(this.registry.getFactScanners());
         this.typeResolver = new TypeResolverImpl(this.registry.getTypeFinders());
         this.ready = true;
@@ -75,5 +100,11 @@ public final class FibreImpl implements Fibre {
     @Override
     public boolean isReady() {
         return this.ready;
+    }
+
+    private void initializePlayerJoinToken(PlayerJoinToken token) {
+        for (Consumer<PlayerJoinToken> initializer : this.playerJoinInitializers) {
+            initializer.accept(token);
+        }
     }
 }
