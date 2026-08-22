@@ -52,6 +52,9 @@ public abstract class AbstractScopeFactory<T, S> implements ScopeFactory<T> {
             for (ObjectInitializer initializer : definition.initializers()) {
                 graph.addDependencies(definition.key(), initializer.getDependencies());
             }
+            for (ObjectInitializer initializer : definition.activators()) {
+                graph.addDependencies(definition.key(), initializer.getDependencies());
+            }
             for (ObjectInitializer initializer : definition.postInitializers()) {
                 graph.addDependencies(definition.key(), initializer.getDependencies());
             }
@@ -79,6 +82,12 @@ public abstract class AbstractScopeFactory<T, S> implements ScopeFactory<T> {
             for (ScopeDefinition definition : localDefinitions) {
                 ScopedObject object = scope.require(definition.key());
                 for (ObjectInitializer initializer : definition.initializers()) {
+                    initializer.initialize(scope, object);
+                }
+            }
+            for (ScopeDefinition definition : localDefinitions) {
+                ScopedObject object = scope.require(definition.key());
+                for (ObjectInitializer initializer : definition.activators()) {
                     initializer.initialize(scope, object);
                 }
             }

@@ -15,6 +15,7 @@ public final class DynamicContainer<T> implements Dynamic<T>, AutoCloseable {
     private @Nullable Scope parent;
     private @Nullable Scope currentScope;
     private @Nullable ObjectKey currentKey;
+    private boolean active;
 
     public DynamicContainer(ObjectKey initialKey) {
         this.initialKey = initialKey;
@@ -25,6 +26,16 @@ public final class DynamicContainer<T> implements Dynamic<T>, AutoCloseable {
             throw new IllegalStateException("Dynamic container is already initialized");
         }
         this.parent = parent;
+    }
+
+    public void activate() {
+        if (this.parent == null) {
+            throw new IllegalStateException("Dynamic container is not initialized");
+        }
+        if (this.active) {
+            throw new IllegalStateException("Dynamic container is already active");
+        }
+        this.active = true;
         this.set(this.initialKey);
     }
 
@@ -33,14 +44,20 @@ public final class DynamicContainer<T> implements Dynamic<T>, AutoCloseable {
     public T get() {
         Scope scope = this.currentScope;
         ObjectKey key = this.currentKey;
+        if (!this.active) {
+            throw new IllegalStateException("Dynamic container is not active during scope configuration");
+        }
         if (scope == null || key == null) {
-            throw new IllegalStateException("Dynamic container is not initialized");
+            throw new IllegalStateException("Dynamic container has no current value");
         }
         return (T) scope.require(key).getObject();
     }
 
     @Override
     public void set(Class<? extends T> type) {
+        if (!this.active) {
+            throw new IllegalStateException("Dynamic container is not active during scope configuration");
+        }
         this.set(ObjectKey.fromType(type));
     }
 
@@ -67,5 +84,9 @@ public final class DynamicContainer<T> implements Dynamic<T>, AutoCloseable {
         if (this.currentScope != null) {
             this.currentScope.close();
         }
+        this.currentScope = null;
+        this.currentKey = null;
+        this.active = false;
+        this.parent = null;
     }
 }
