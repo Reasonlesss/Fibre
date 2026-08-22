@@ -5,7 +5,6 @@ import cloud.emilys.fibre.api.game.Game;
 import java.util.List;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NullMarked;
-import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public interface Scope extends AutoCloseable, RuntimeDataOwner, ScopeResolver {
@@ -20,8 +19,7 @@ public interface Scope extends AutoCloseable, RuntimeDataOwner, ScopeResolver {
         return this.getGame().getPlugin();
     }
 
-    @Nullable
-    Scope getParent();
+    List<Scope> getParents();
 
     List<Scope> getChildren();
 

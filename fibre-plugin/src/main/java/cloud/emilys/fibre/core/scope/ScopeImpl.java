@@ -9,15 +9,18 @@ import cloud.emilys.fibre.api.scope.ScopedObject;
 import cloud.emilys.fibre.core.data.RuntimeDataImpl;
 import cloud.emilys.fibre.core.util.ClassHierarchy;
 import cloud.emilys.fibre.core.util.ResourceCleanup;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.jspecify.annotations.NullMarked;
-import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public final class ScopeImpl implements Scope {
@@ -26,9 +29,9 @@ public final class ScopeImpl implements Scope {
     private final Map<Class<?>, List<Filter<?>>> filters = new LinkedHashMap<>();
     private final Map<ObjectKey, ScopedObject> objectMap;
     private final List<Scope> children = new ArrayList<>();
+    private final List<Scope> parents = new ArrayList<>();
     private String name = "Scope";
     private final Game game;
-    private @Nullable Scope parent;
     private boolean closed;
 
     public ScopeImpl(Game game, Map<ObjectKey, ? extends ScopedObject> objects) {
@@ -53,8 +56,8 @@ public final class ScopeImpl implements Scope {
     }
 
     @Override
-    public @Nullable Scope getParent() {
-        return this.parent;
+    public List<Scope> getParents() {
+        return Collections.unmodifiableList(this.parents);
     }
 
     @Override
@@ -68,21 +71,33 @@ public final class ScopeImpl implements Scope {
         if (!(parent instanceof ScopeImpl parentScope)) {
             throw new IllegalArgumentException("Parent scope must be managed by Fibre");
         }
-        if (this.parent != null) {
-            throw new IllegalStateException("Scope already has a parent");
-        }
         if (parent.getGame() != this.game) {
             throw new IllegalArgumentException("A child scope must belong to the same game as its parent");
         }
-        Scope ancestor = parent;
-        while (ancestor != null) {
-            if (ancestor == this) {
+        if (!this.parents.isEmpty()) {
+            Scope expectedRoot = rootOf(this);
+            if (rootOf(parent) != expectedRoot) {
+                throw new IllegalArgumentException(
+                        "All parents must share the same root scope (expected %s)".formatted(expectedRoot.getName()));
+            }
+        }
+        Deque<Scope> stack = new ArrayDeque<>();
+        Set<Scope> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        stack.push(parent);
+        while (!stack.isEmpty()) {
+            Scope current = stack.pop();
+            if (current == this) {
                 throw new IllegalArgumentException("Binding this parent would create a scope cycle");
             }
-            ancestor = ancestor.getParent();
+            for (Scope ancestor : current.getParents()) {
+                if (visited.add(ancestor)) {
+                    stack.push(ancestor);
+                }
+            }
         }
-        this.parent = parent;
-        parentScope.children.add(this);
+        if (this.parents.add(parent)) {
+            parentScope.children.add(this);
+        }
     }
 
     @Override
@@ -96,9 +111,10 @@ public final class ScopeImpl implements Scope {
     @SuppressWarnings("unchecked")
     public boolean accepts(Object value) {
         Objects.requireNonNull(value, "value");
-        Scope parent = this.parent;
-        if (parent != null && !parent.accepts(value)) {
-            return false;
+        for (Scope parent : this.parents) {
+            if (!parent.accepts(value)) {
+                return false;
+            }
         }
         for (Class<?> type : ClassHierarchy.getAllClasses(value)) {
             List<Filter<?>> filters = this.filters.get(type);
@@ -128,8 +144,13 @@ public final class ScopeImpl implements Scope {
         if (object != null) {
             return Optional.of(object);
         }
-        Scope parent = this.parent;
-        return parent == null ? Optional.empty() : parent.get(key);
+        for (Scope parent : this.parents) {
+            Optional<ScopedObject> found = parent.get(key);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -145,9 +166,19 @@ public final class ScopeImpl implements Scope {
         this.closed = true;
         ResourceCleanup.closeAllQuietly(List.copyOf(this.children));
         ResourceCleanup.closeAllQuietly(List.copyOf(this.objectMap.values()));
-        if (this.parent instanceof ScopeImpl impl) {
-            impl.children.remove(this);
+        for (Scope parent : this.parents) {
+            if (parent instanceof ScopeImpl impl) {
+                impl.children.remove(this);
+            }
         }
+    }
+
+    private static Scope rootOf(Scope scope) {
+        Scope current = scope;
+        while (!current.getParents().isEmpty()) {
+            current = current.getParents().getFirst();
+        }
+        return current;
     }
 
     @Override
