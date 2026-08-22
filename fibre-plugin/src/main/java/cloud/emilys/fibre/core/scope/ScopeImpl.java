@@ -32,6 +32,7 @@ public final class ScopeImpl implements Scope {
     private final List<Scope> parents = new ArrayList<>();
     private String name = "Scope";
     private final Game game;
+    private boolean closed;
 
     public ScopeImpl(Game game, Map<ObjectKey, ? extends ScopedObject> objects) {
         this.game = Objects.requireNonNull(game, "game");
@@ -159,6 +160,11 @@ public final class ScopeImpl implements Scope {
 
     @Override
     public void close() {
+        if (this.closed) {
+            return;
+        }
+        this.closed = true;
+        ResourceCleanup.closeAllQuietly(List.copyOf(this.children));
         ResourceCleanup.closeAllQuietly(List.copyOf(this.objectMap.values()));
         for (Scope parent : this.parents) {
             if (parent instanceof ScopeImpl impl) {

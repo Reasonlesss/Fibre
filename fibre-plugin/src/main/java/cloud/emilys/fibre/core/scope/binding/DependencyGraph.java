@@ -1,7 +1,7 @@
 package cloud.emilys.fibre.core.scope.binding;
 
-import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.DependencyCycleException;
+import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.binding.DependencySet;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
