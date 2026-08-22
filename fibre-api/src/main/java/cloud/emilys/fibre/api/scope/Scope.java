@@ -20,8 +20,12 @@ public interface Scope extends AutoCloseable, RuntimeDataOwner, ScopeResolver {
         return this.getGame().getPlugin();
     }
 
-    @Nullable
-    Scope getParent();
+    default @Nullable Scope getParent() {
+        List<Scope> parents = this.getParents();
+        return parents.isEmpty() ? null : parents.getFirst();
+    }
+
+    List<Scope> getParents();
 
     List<Scope> getChildren();
 
