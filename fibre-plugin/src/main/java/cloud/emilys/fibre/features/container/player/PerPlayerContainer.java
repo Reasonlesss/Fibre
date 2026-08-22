@@ -88,7 +88,8 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
             @Override
             public T next() {
                 //noinspection resource
-                return (T) scopes.next().require(PerPlayerContainer.this.valueKey).getObject();
+                return (T)
+                        scopes.next().require(PerPlayerContainer.this.valueKey).getObject();
             }
         };
     }
