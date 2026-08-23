@@ -1,7 +1,7 @@
 package cloud.emilys.fibre.api.game;
 
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import org.jspecify.annotations.NullMarked;
 
 /** Starts work that must finish before a reserved player is joined to a game. */
@@ -9,5 +9,5 @@ import org.jspecify.annotations.NullMarked;
 @NullMarked
 public interface PlayerPreloader {
 
-    CompletableFuture<?> preload(UUID playerId);
+    CompletionStage<?> preload(UUID playerId);
 }

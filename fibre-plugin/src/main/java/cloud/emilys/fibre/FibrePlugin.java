@@ -9,7 +9,6 @@ import cloud.emilys.fibre.features.dependency.DependencyFeature;
 import cloud.emilys.fibre.features.event.EventFeature;
 import cloud.emilys.fibre.features.lifecycle.LifecycleFeature;
 import cloud.emilys.fibre.features.player.PlayerJoinListener;
-import cloud.emilys.fibre.features.player.PlayerPreloadFeature;
 import cloud.emilys.fibre.features.state.StateFeature;
 import cloud.emilys.fibre.features.world.WorldFeature;
 import cloud.emilys.fibre.platform.FibrePlatform;
@@ -41,7 +40,6 @@ public final class FibrePlugin extends JavaPlugin {
         EventFeature.install(this.fibre);
         DependencyFeature.install(this.fibre);
         LifecycleFeature.install(this.fibre);
-        PlayerPreloadFeature.install(this.fibre);
         StateFeature.install(this.fibre);
         WorldFeature.install(this.fibre);
         platform.install(this.fibre);
