@@ -9,7 +9,6 @@ import codes.reason.fibre.features.dependency.DependencyFeature;
 import codes.reason.fibre.features.event.EventFeature;
 import codes.reason.fibre.features.lifecycle.LifecycleFeature;
 import codes.reason.fibre.features.player.PlayerJoinListener;
-import codes.reason.fibre.features.player.PlayerPreloadFeature;
 import codes.reason.fibre.features.state.StateFeature;
 import codes.reason.fibre.features.world.WorldFeature;
 import codes.reason.fibre.platform.FibrePlatform;
@@ -41,7 +40,6 @@ public final class FibrePlugin extends JavaPlugin {
         EventFeature.install(this.fibre);
         DependencyFeature.install(this.fibre);
         LifecycleFeature.install(this.fibre);
-        PlayerPreloadFeature.install(this.fibre);
         StateFeature.install(this.fibre);
         WorldFeature.install(this.fibre);
         platform.install(this.fibre);

@@ -25,7 +25,8 @@ public final class GameManagerImpl implements GameManager {
     private final Consumer<PlayerJoinToken> tokenInitializer;
     private final Object membershipLock = new Object();
     private final Set<GameImpl> instances = new LinkedHashSet<>();
-    private final Map<UUID, PlayerJoinTokenImpl> pendingJoins = new ConcurrentHashMap<>();
+    // Unpublished reservations block duplicates without exposing a token before its initializers finish.
+    private final Map<UUID, PlayerJoinReservation> pendingJoins = new ConcurrentHashMap<>();
     private final Map<UUID, GameImpl> gamesByPlayer = new ConcurrentHashMap<>();
 
     public GameManagerImpl(Fibre api, Consumer<PlayerJoinToken> tokenInitializer) {
@@ -55,7 +56,9 @@ public final class GameManagerImpl implements GameManager {
         }
         synchronized (this.membershipLock) {
             this.gamesByPlayer.entrySet().removeIf(entry -> entry.getValue() == instance);
-            this.pendingJoins.entrySet().removeIf(entry -> entry.getValue().getGame() == instance);
+            this.pendingJoins
+                    .entrySet()
+                    .removeIf(entry -> entry.getValue().token().getGame() == instance);
         }
     }
 
@@ -68,7 +71,11 @@ public final class GameManagerImpl implements GameManager {
     @Override
     public Optional<PlayerJoinToken> findPlayerJoinToken(UUID playerId) {
         Objects.requireNonNull(playerId, "playerId");
-        return Optional.ofNullable(this.pendingJoins.get(playerId));
+        PlayerJoinReservation reservation = this.pendingJoins.get(playerId);
+        if (reservation == null || !reservation.isPublished()) {
+            return Optional.empty();
+        }
+        return Optional.of(reservation.token());
     }
 
     @Override
@@ -100,6 +107,7 @@ public final class GameManagerImpl implements GameManager {
         try {
             game.trackPlayerJoinToken(token);
             this.tokenInitializer.accept(token);
+            this.publishPlayerJoinToken(token);
             return token;
         } catch (RuntimeException | Error failure) {
             token.cancel();
@@ -111,14 +119,29 @@ public final class GameManagerImpl implements GameManager {
         Objects.requireNonNull(token, "token");
         synchronized (this.membershipLock) {
             UUID playerId = token.getPlayerId();
-            return !this.gamesByPlayer.containsKey(playerId) && this.pendingJoins.putIfAbsent(playerId, token) == null;
+            return !this.gamesByPlayer.containsKey(playerId)
+                    && this.pendingJoins.putIfAbsent(playerId, new PlayerJoinReservation(token)) == null;
+        }
+    }
+
+    void publishPlayerJoinToken(PlayerJoinTokenImpl token) {
+        Objects.requireNonNull(token, "token");
+        synchronized (this.membershipLock) {
+            PlayerJoinReservation reservation = this.pendingJoins.get(token.getPlayerId());
+            if (reservation == null || reservation.token() != token) {
+                throw new IllegalStateException("Player join token is no longer registered");
+            }
+            reservation.publish();
         }
     }
 
     void releasePlayerJoinToken(PlayerJoinTokenImpl token) {
         Objects.requireNonNull(token, "token");
         synchronized (this.membershipLock) {
-            this.pendingJoins.remove(token.getPlayerId(), token);
+            PlayerJoinReservation reservation = this.pendingJoins.get(token.getPlayerId());
+            if (reservation != null && reservation.token() == token) {
+                this.pendingJoins.remove(token.getPlayerId(), reservation);
+            }
         }
     }
 
@@ -139,7 +162,11 @@ public final class GameManagerImpl implements GameManager {
         GameImpl game = (GameImpl) token.getGame();
         UUID playerId = token.getPlayerId();
         synchronized (this.membershipLock) {
-            if (!this.pendingJoins.remove(playerId, token)) {
+            PlayerJoinReservation reservation = this.pendingJoins.get(playerId);
+            if (reservation == null
+                    || reservation.token() != token
+                    || !reservation.isPublished()
+                    || !this.pendingJoins.remove(playerId, reservation)) {
                 throw new IllegalStateException("Player join token is no longer registered");
             }
             if (this.gamesByPlayer.putIfAbsent(playerId, game) != null) {
@@ -171,6 +198,28 @@ public final class GameManagerImpl implements GameManager {
         Objects.requireNonNull(game, "game");
         if (!this.instances.contains(game)) {
             throw new IllegalStateException("Game instance is not active");
+        }
+    }
+
+    private static final class PlayerJoinReservation {
+
+        private final PlayerJoinTokenImpl token;
+        private volatile boolean published;
+
+        private PlayerJoinReservation(PlayerJoinTokenImpl token) {
+            this.token = Objects.requireNonNull(token, "token");
+        }
+
+        private PlayerJoinTokenImpl token() {
+            return this.token;
+        }
+
+        private boolean isPublished() {
+            return this.published;
+        }
+
+        private void publish() {
+            this.published = true;
         }
     }
 }
