@@ -4,8 +4,6 @@ import cloud.emilys.fibre.api.Fibre;
 import cloud.emilys.fibre.api.FibreStartupRegistry;
 import cloud.emilys.fibre.api.fact.FactIndex;
 import cloud.emilys.fibre.api.game.GameManager;
-import cloud.emilys.fibre.api.game.PlayerJoinToken;
-import cloud.emilys.fibre.api.game.PlayerPreloader;
 import cloud.emilys.fibre.api.scope.discovery.ScopeContributor;
 import cloud.emilys.fibre.api.scope.lifecycle.ScopeInitializer;
 import cloud.emilys.fibre.api.type.TypeResolver;
@@ -30,7 +28,7 @@ public final class FibreImpl implements Fibre {
 
     public FibreImpl(JavaPlugin plugin) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
-        this.gameManager = new GameManagerImpl(this, this::initializePlayerJoinToken, plugin);
+        this.gameManager = new GameManagerImpl(this, this.registry::getPlayerPreloaders, plugin);
     }
 
     @Override
@@ -86,12 +84,5 @@ public final class FibreImpl implements Fibre {
     @Override
     public boolean isReady() {
         return this.ready;
-    }
-
-    private void initializePlayerJoinToken(PlayerJoinToken token) {
-        for (PlayerPreloader preloader : this.registry.getPlayerPreloaders()) {
-            token.waitFor(Objects.requireNonNull(
-                    preloader.preload(token.getGame(), token.getPlayerId()), "Player preloader returned null"));
-        }
     }
 }

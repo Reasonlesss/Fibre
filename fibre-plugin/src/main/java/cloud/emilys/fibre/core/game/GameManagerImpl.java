@@ -6,6 +6,7 @@ import cloud.emilys.fibre.api.game.Game;
 import cloud.emilys.fibre.api.game.GameBuilder;
 import cloud.emilys.fibre.api.game.GameManager;
 import cloud.emilys.fibre.api.game.PlayerJoinToken;
+import cloud.emilys.fibre.api.game.PlayerPreloader;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -33,7 +34,7 @@ import org.jspecify.annotations.NullMarked;
 public final class GameManagerImpl implements GameManager, Listener {
 
     private final Fibre api;
-    private final Consumer<PlayerJoinToken> tokenInitializer;
+    private final Supplier<List<PlayerPreloader>> playerPreloaders;
     private final JavaPlugin plugin;
     private final Object membershipLock = new Object();
     private final Set<GameImpl> instances = new LinkedHashSet<>();
@@ -41,9 +42,9 @@ public final class GameManagerImpl implements GameManager, Listener {
     private final Map<UUID, PlayerJoinReservation> pendingJoins = new ConcurrentHashMap<>();
     private final Map<UUID, GameImpl> gamesByPlayer = new ConcurrentHashMap<>();
 
-    public GameManagerImpl(Fibre api, Consumer<PlayerJoinToken> tokenInitializer, JavaPlugin plugin) {
+    public GameManagerImpl(Fibre api, Supplier<List<PlayerPreloader>> playerPreloaders, JavaPlugin plugin) {
         this.api = Objects.requireNonNull(api, "api");
-        this.tokenInitializer = Objects.requireNonNull(tokenInitializer, "tokenInitializer");
+        this.playerPreloaders = Objects.requireNonNull(playerPreloaders, "playerPreloaders");
         this.plugin = Objects.requireNonNull(plugin, "plugin");
     }
 
@@ -118,7 +119,7 @@ public final class GameManagerImpl implements GameManager, Listener {
 
         try {
             game.trackPlayerJoinToken(token);
-            this.tokenInitializer.accept(token);
+            this.initializePlayerJoinToken(token);
             this.publishPlayerJoinToken(token);
             Player player = Bukkit.getPlayer(playerId);
             if (player != null && player.isOnline()) {
@@ -128,6 +129,13 @@ public final class GameManagerImpl implements GameManager, Listener {
         } catch (RuntimeException | Error failure) {
             token.cancel();
             throw failure;
+        }
+    }
+
+    private void initializePlayerJoinToken(PlayerJoinToken token) {
+        for (PlayerPreloader preloader : this.playerPreloaders.get()) {
+            token.waitFor(Objects.requireNonNull(
+                    preloader.preload(token.getGame(), token.getPlayerId()), "Player preloader returned null"));
         }
     }
 
