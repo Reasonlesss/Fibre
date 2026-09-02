@@ -22,7 +22,7 @@ public final class WorldFeature {
     public static void install(Fibre fibre) {
         Objects.requireNonNull(fibre, "fibre");
         fibre.getStartupRegistry().registerScopeContributor((collector, key) -> {
-            collector.postInitialize(key, (_, object) -> {
+            collector.postInitialize(key, object -> {
                 World world =
                         switch (object.getObject()) {
                             case World w -> w;

@@ -18,10 +18,10 @@ public final class LifecycleContributor implements ScopeContributor {
 
     @Override
     public void contribute(ScopeCollector collector, ObjectKey key) {
-        collector.initialize(key, (_, object) -> {
+        collector.initialize(key, object -> {
             dispatchLifecycleMethods(object, LifecycleFacts.CONFIGURE);
         });
-        collector.postInitialize(key, (_, object) -> {
+        collector.postInitialize(key, object -> {
             dispatchLifecycleMethods(object, LifecycleFacts.ENTER);
             BukkitTask task = new BukkitRunnable() {
                 @Override

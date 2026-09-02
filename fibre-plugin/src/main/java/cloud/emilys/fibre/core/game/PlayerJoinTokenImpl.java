@@ -10,7 +10,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
 import org.jspecify.annotations.NullMarked;
@@ -22,7 +21,6 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
     private final Game game;
     private final UUID playerId;
     private final Consumer<PlayerJoinTokenImpl> releaseAction;
-    private final BiConsumer<PlayerJoinTokenImpl, Player> joinAction;
     private final Object lock = new Object();
     private final List<CompletionStage<?>> stages = new ArrayList<>();
     private final AtomicBoolean released = new AtomicBoolean();
@@ -30,15 +28,10 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
     private State state = State.PENDING;
     private @Nullable CompletableFuture<Void> readiness;
 
-    PlayerJoinTokenImpl(
-            Game game,
-            UUID playerId,
-            Consumer<PlayerJoinTokenImpl> releaseAction,
-            BiConsumer<PlayerJoinTokenImpl, Player> joinAction) {
+    PlayerJoinTokenImpl(Game game, UUID playerId, Consumer<PlayerJoinTokenImpl> releaseAction) {
         this.game = Objects.requireNonNull(game, "game");
         this.playerId = Objects.requireNonNull(playerId, "playerId");
         this.releaseAction = Objects.requireNonNull(releaseAction, "releaseAction");
-        this.joinAction = Objects.requireNonNull(joinAction, "joinAction");
     }
 
     @Override
@@ -62,13 +55,7 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
         }
     }
 
-    @Override
-    public void await() {
-        this.seal().join();
-    }
-
-    @Override
-    public void join(Player player) {
+    void beginJoin(Player player) {
         Objects.requireNonNull(player, "player");
         if (!this.playerId.equals(player.getUniqueId())) {
             throw new IllegalArgumentException("Player UUID does not match this join token");
@@ -81,19 +68,26 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
             }
             this.state = State.JOINING;
         }
+    }
 
-        try {
-            this.joinAction.accept(this, player);
-            synchronized (this.lock) {
-                this.state = State.JOINED;
+    void joined() {
+        synchronized (this.lock) {
+            if (this.state != State.JOINING) {
+                throw new IllegalStateException("Player join token cannot complete from state " + this.state);
             }
-        } catch (RuntimeException | Error failure) {
-            synchronized (this.lock) {
-                this.state = State.FAILED;
-            }
-            this.release();
-            throw failure;
+            this.state = State.JOINED;
         }
+    }
+
+    void failed() {
+        synchronized (this.lock) {
+            this.state = State.FAILED;
+        }
+        this.release();
+    }
+
+    CompletableFuture<Void> readiness() {
+        return this.seal();
     }
 
     @Override

@@ -1,6 +1,5 @@
 package cloud.emilys.fibre.features.container.entity;
 
-import cloud.emilys.fibre.api.scope.ScopeResolver;
 import cloud.emilys.fibre.api.scope.ScopedObject;
 import cloud.emilys.fibre.api.scope.lifecycle.ObjectInitializer;
 import org.jspecify.annotations.NullMarked;
@@ -9,7 +8,7 @@ import org.jspecify.annotations.NullMarked;
 public final class PerEntityContainerInitializer implements ObjectInitializer {
 
     @Override
-    public void initialize(ScopeResolver resolver, ScopedObject object) {
+    public void initialize(ScopedObject object) {
         if (object.getObject() instanceof PerEntityContainer<?> container) {
             container.initialize(object.getScope());
         }
