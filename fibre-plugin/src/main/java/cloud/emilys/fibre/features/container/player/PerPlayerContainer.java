@@ -8,10 +8,10 @@ import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.Scope;
 import cloud.emilys.fibre.api.scope.creation.ScopeBlueprint;
 import cloud.emilys.fibre.api.scope.creation.ScopeFactory;
-import cloud.emilys.fibre.core.util.ResourceCleanup;
+import cloud.emilys.fibre.features.container.ContainerUtil;
+import cloud.emilys.fibre.features.playerpreload.PlayerPreloadDataKeys;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.bukkit.Bukkit;
@@ -88,7 +88,8 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
             @Override
             public T next() {
                 //noinspection resource
-                return (T) scopes.next().require(PerPlayerContainer.this.valueKey).getObject();
+                return (T)
+                        scopes.next().require(PerPlayerContainer.this.valueKey).getObject();
             }
         };
     }
@@ -118,14 +119,21 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
         if (this.scopes.containsKey(playerId)) {
             return;
         }
-        Scope parent = this.parent;
-        if (parent == null) {
+        Scope containerScope = this.parent;
+        if (containerScope == null) {
             throw new IllegalStateException("Per-player container is not initialized");
         }
+        Scope playerScope = containerScope
+                .getGame()
+                .getRootScope()
+                .get(PlayerPreloadDataKeys.SCOPES)
+                .filter(scopes -> scopes.containsKey(playerId))
+                .map(scopes -> scopes.get(playerId).toCompletableFuture().join())
+                .orElseThrow(() -> new IllegalStateException("Player was not preloaded for this game"));
         Scope scope = ScopeFactory.synchronous()
                 .initialize(ScopeBlueprint.builder()
-                        .setParent(parent)
-                        .setGame(parent.getGame())
+                        .setParent(playerScope)
+                        .setGame(containerScope.getGame())
                         .setInitialKey(this.valueKey)
                         .setInputObject(Player.class, player)
                         .build());
@@ -146,7 +154,7 @@ public final class PerPlayerContainer<T> implements PerPlayer<T>, Listener, Auto
     @Override
     public void close() {
         HandlerList.unregisterAll(this);
-        ResourceCleanup.closeAllQuietly(List.copyOf(this.scopes.values()));
+        ContainerUtil.closeScopes(this.scopes.values());
         this.scopes.clear();
         this.active = false;
         this.parent = null;
