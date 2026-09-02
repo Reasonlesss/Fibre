@@ -9,5 +9,5 @@ import org.jspecify.annotations.NullMarked;
 @NullMarked
 public interface PlayerPreloader {
 
-    CompletionStage<?> preload(UUID playerId);
+    CompletionStage<?> preload(Game game, UUID playerId);
 }

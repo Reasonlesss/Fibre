@@ -1,7 +1,6 @@
 package codes.reason.fibre.features.dependency;
 
 import codes.reason.fibre.api.scope.ObjectKey;
-import codes.reason.fibre.api.scope.ScopeResolver;
 import codes.reason.fibre.api.scope.ScopedObject;
 import codes.reason.fibre.api.scope.binding.DependencySet;
 import codes.reason.fibre.api.scope.lifecycle.ObjectInitializer;
@@ -30,14 +29,15 @@ public final class UseFieldInitializer implements ObjectInitializer {
     }
 
     @Override
-    public void initialize(ScopeResolver resolver, ScopedObject object) {
-        Objects.requireNonNull(resolver, "resolver");
+    public void initialize(ScopedObject object) {
         Objects.requireNonNull(object, "object");
         for (int index = 0; index < this.fields.size(); index++) {
             Field field = this.fields.get(index);
             ObjectKey dependency = this.dependencies.get(index);
             try {
-                field.set(object.getObject(), resolver.require(dependency).getObject());
+                field.set(
+                        object.getObject(),
+                        object.getScope().require(dependency).getObject());
             } catch (IllegalAccessException exception) {
                 throw new IllegalStateException(
                         "Cannot inject dependency into field %s".formatted(field.toGenericString()), exception);

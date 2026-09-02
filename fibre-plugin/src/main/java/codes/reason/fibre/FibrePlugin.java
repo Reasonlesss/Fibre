@@ -8,7 +8,7 @@ import codes.reason.fibre.features.container.ContainerFeature;
 import codes.reason.fibre.features.dependency.DependencyFeature;
 import codes.reason.fibre.features.event.EventFeature;
 import codes.reason.fibre.features.lifecycle.LifecycleFeature;
-import codes.reason.fibre.features.player.PlayerJoinListener;
+import codes.reason.fibre.features.playerpreload.PlayerPreloadFeature;
 import codes.reason.fibre.features.state.StateFeature;
 import codes.reason.fibre.features.world.WorldFeature;
 import codes.reason.fibre.platform.FibrePlatform;
@@ -26,7 +26,7 @@ public final class FibrePlugin extends JavaPlugin {
     @Override
     public void onLoad() {
         // Setup internal fibre features
-        this.fibre = new FibreImpl();
+        this.fibre = new FibreImpl(this);
         FibreBridgeImpl bridge = new FibreBridgeImpl();
         FibrePlatform platform = FibrePlatformFactory.create();
 
@@ -42,6 +42,7 @@ public final class FibrePlugin extends JavaPlugin {
         LifecycleFeature.install(this.fibre);
         StateFeature.install(this.fibre);
         WorldFeature.install(this.fibre);
+        PlayerPreloadFeature.install(this.fibre);
         platform.install(this.fibre);
     }
 
@@ -49,6 +50,5 @@ public final class FibrePlugin extends JavaPlugin {
     public void onEnable() {
         assert this.fibre != null;
         this.fibre.finishSetup();
-        this.getServer().getPluginManager().registerEvents(new PlayerJoinListener(this.fibre, this), this);
     }
 }
