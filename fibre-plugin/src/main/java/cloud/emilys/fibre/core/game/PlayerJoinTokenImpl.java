@@ -1,5 +1,6 @@
 package cloud.emilys.fibre.core.game;
 
+import cloud.emilys.fibre.api.PrimaryThreadUtil;
 import cloud.emilys.fibre.api.game.Game;
 import cloud.emilys.fibre.api.game.PlayerJoinToken;
 import java.util.ArrayList;
@@ -83,6 +84,7 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
         synchronized (this.lock) {
             this.state = State.FAILED;
         }
+        this.cancelStages();
         this.release();
     }
 
@@ -114,6 +116,7 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
                 this.readiness = completion;
             }
         }
+        this.cancelStages();
         this.release();
     }
 
@@ -151,10 +154,19 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
                 }
             }
             if (failed) {
+                this.cancelStages();
                 this.release();
             }
         });
         return completion;
+    }
+
+    private void cancelStages() {
+        PrimaryThreadUtil.ensureMainThread(this.game.getPlugin(), () -> {
+            for (CompletionStage<?> stage : List.copyOf(this.stages)) {
+                stage.toCompletableFuture().cancel(true);
+            }
+        });
     }
 
     private void release() {

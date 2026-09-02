@@ -3,7 +3,6 @@ package cloud.emilys.fibre.features.playerpreload;
 import cloud.emilys.fibre.api.scope.Scope;
 import cloud.emilys.fibre.api.scope.lifecycle.ScopeInitializer;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.jspecify.annotations.NullMarked;
@@ -17,7 +16,6 @@ public final class PlayerPreloadInitializer implements ScopeInitializer {
         if (optional.isEmpty()) {
             return;
         }
-        List<Method> unmodifiable = Collections.unmodifiableList(optional.get());
-        scope.put(PlayerPreloadDataKeys.METHODS, unmodifiable);
+        scope.put(PlayerPreloadDataKeys.METHODS, List.copyOf(optional.get()));
     }
 }

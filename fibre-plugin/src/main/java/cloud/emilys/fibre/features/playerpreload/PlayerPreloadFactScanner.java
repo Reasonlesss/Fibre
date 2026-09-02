@@ -12,7 +12,7 @@ import java.util.concurrent.CompletionStage;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
-public class PlayerPreloadFactScanner implements FactScanner {
+public final class PlayerPreloadFactScanner implements FactScanner {
 
     @Override
     public void collect(FactScanContext context) {
@@ -23,6 +23,14 @@ public class PlayerPreloadFactScanner implements FactScanner {
             }
             if (!CompletionStage.class.isAssignableFrom(method.getReturnType())) {
                 context.report(method, "Methods annotated with @PlayerPreload must return a CompletionStage.");
+            } else {
+                try {
+                    if (PlayerPreloadUtil.getPreloadedKey(method).getObjectClass() == Void.class) {
+                        context.report(method, "Methods annotated with @PlayerPreload must produce a value.");
+                    }
+                } catch (IllegalArgumentException _) {
+                    context.report(method, "Methods annotated with @PlayerPreload must declare one result type.");
+                }
             }
             if (method.getParameterCount() != 1 || method.getParameterTypes()[0] != UUID.class) {
                 context.report(method, "Methods annotated with @PlayerPreload must accept one UUID parameter.");

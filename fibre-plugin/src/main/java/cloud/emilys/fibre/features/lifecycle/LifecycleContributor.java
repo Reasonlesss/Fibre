@@ -6,9 +6,11 @@ import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.ScopedObject;
 import cloud.emilys.fibre.api.scope.discovery.ScopeCollector;
 import cloud.emilys.fibre.api.scope.discovery.ScopeContributor;
-import cloud.emilys.fibre.core.util.ExceptionUtil;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.jspecify.annotations.NullMarked;
@@ -44,10 +46,24 @@ public final class LifecycleContributor implements ScopeContributor {
                             .handleException(new RuntimeException(
                                     "Encountered an exception while calling lifecycle method %s"
                                             .formatted(method.toGenericString()),
-                                    ExceptionUtil.unwrap(failure)));
+                                    unwrap(failure)));
                     return;
                 }
             }
         });
+    }
+
+    private static Throwable unwrap(Throwable failure) {
+        Throwable current = failure;
+        while (current instanceof InvocationTargetException
+                || current instanceof CompletionException
+                || current instanceof ExecutionException) {
+            Throwable cause = current.getCause();
+            if (cause == null) {
+                break;
+            }
+            current = cause;
+        }
+        return current;
     }
 }
