@@ -42,7 +42,7 @@ public final class FibrePlugin extends JavaPlugin {
         LifecycleFeature.install(this.fibre);
         StateFeature.install(this.fibre);
         WorldFeature.install(this.fibre);
-        PlayerPreloadFeature.install(this.fibre);
+        PlayerPreloadFeature.install(this.fibre, this);
         platform.install(this.fibre);
     }
 

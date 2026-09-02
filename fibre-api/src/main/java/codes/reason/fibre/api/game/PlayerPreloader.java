@@ -4,7 +4,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import org.jspecify.annotations.NullMarked;
 
-/** Starts work that must finish before a reserved player is joined to a game. */
+/** Starts deferred work that must finish before a reserved player is joined to a game. */
 @FunctionalInterface
 @NullMarked
 public interface PlayerPreloader {

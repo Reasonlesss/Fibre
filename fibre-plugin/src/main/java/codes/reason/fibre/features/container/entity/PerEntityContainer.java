@@ -5,10 +5,9 @@ import codes.reason.fibre.api.scope.ObjectKey;
 import codes.reason.fibre.api.scope.Scope;
 import codes.reason.fibre.api.scope.creation.ScopeBlueprint;
 import codes.reason.fibre.api.scope.creation.ScopeFactory;
-import codes.reason.fibre.core.util.ResourceCleanup;
+import codes.reason.fibre.features.container.ContainerUtil;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.bukkit.entity.Entity;
@@ -119,7 +118,7 @@ public final class PerEntityContainer<T> implements PerEntity<T>, AutoCloseable 
 
     @Override
     public void close() {
-        ResourceCleanup.closeAllQuietly(List.copyOf(this.scopes.values()));
+        ContainerUtil.closeScopes(this.scopes.values());
         this.scopes.clear();
         this.active = false;
         this.parent = null;
