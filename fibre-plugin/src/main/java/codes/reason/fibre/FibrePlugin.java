@@ -8,27 +8,25 @@ import codes.reason.fibre.features.container.ContainerFeature;
 import codes.reason.fibre.features.dependency.DependencyFeature;
 import codes.reason.fibre.features.event.EventFeature;
 import codes.reason.fibre.features.lifecycle.LifecycleFeature;
+import codes.reason.fibre.features.playerpreload.PlayerPreloadFeature;
 import codes.reason.fibre.features.state.StateFeature;
 import codes.reason.fibre.features.world.WorldFeature;
 import codes.reason.fibre.platform.FibrePlatform;
 import codes.reason.fibre.platform.FibrePlatformFactory;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
 @NullMarked
-public final class FibrePlugin extends JavaPlugin implements Listener {
+public final class FibrePlugin extends JavaPlugin {
 
     private @Nullable FibreImpl fibre;
 
     @Override
     public void onLoad() {
         // Setup internal fibre features
-        this.fibre = new FibreImpl();
+        this.fibre = new FibreImpl(this);
         FibreBridgeImpl bridge = new FibreBridgeImpl();
         FibrePlatform platform = FibrePlatformFactory.create();
 
@@ -44,6 +42,7 @@ public final class FibrePlugin extends JavaPlugin implements Listener {
         LifecycleFeature.install(this.fibre);
         StateFeature.install(this.fibre);
         WorldFeature.install(this.fibre);
+        PlayerPreloadFeature.install(this.fibre, this);
         platform.install(this.fibre);
     }
 
@@ -51,12 +50,5 @@ public final class FibrePlugin extends JavaPlugin implements Listener {
     public void onEnable() {
         assert this.fibre != null;
         this.fibre.finishSetup();
-        this.getServer().getPluginManager().registerEvents(this, this);
-    }
-
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        assert this.fibre != null;
-        this.fibre.getGameManager().findGame(event.getPlayer()).ifPresent(game -> game.removePlayer(event.getPlayer()));
     }
 }

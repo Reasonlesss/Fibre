@@ -15,7 +15,7 @@ public final class StateContributor implements ScopeContributor {
         if (!collector.getFactsFor(key).has(StateFacts.STATE_MACHINE_INITIAL_STATE)) {
             return;
         }
-        collector.activate(key, (_, object) -> {
+        collector.activate(key, object -> {
             Class<?> initialState = object.getFacts().require(StateFacts.STATE_MACHINE_INITIAL_STATE);
             StateManager manager = new StateManager(object.getScope(), initialState);
             object.track(manager);

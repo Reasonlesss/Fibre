@@ -25,19 +25,19 @@ public final class ContainerContributor implements ScopeContributor {
         if (key.getObjectClass() == Dynamic.class) {
             collector.bind(key, new DynamicContainerBinding(key));
             collector.initialize(key, new DynamicContainerInitializer());
-            collector.activate(key, (_, object) -> ((DynamicContainer<?>) object.getObject()).activate());
+            collector.activate(key, object -> ((DynamicContainer<?>) object.getObject()).activate());
             return;
         }
         if (key.getObjectClass() == PerPlayer.class) {
             collector.bind(key, new PerPlayerContainerBinding(key));
             collector.initialize(key, new PerPlayerContainerInitializer());
-            collector.activate(key, (_, object) -> ((PerPlayerContainer<?>) object.getObject()).activate());
+            collector.activate(key, object -> ((PerPlayerContainer<?>) object.getObject()).activate());
             return;
         }
         if (key.getObjectClass() == PerEntity.class) {
             collector.bind(key, new PerEntityContainerBinding(key));
             collector.initialize(key, new PerEntityContainerInitializer());
-            collector.activate(key, (_, object) -> ((PerEntityContainer<?>) object.getObject()).activate());
+            collector.activate(key, object -> ((PerEntityContainer<?>) object.getObject()).activate());
         }
     }
 }
