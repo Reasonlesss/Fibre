@@ -82,19 +82,19 @@ public abstract class AbstractScopeFactory<T, S> implements ScopeFactory<T> {
             for (ScopeDefinition definition : localDefinitions) {
                 ScopedObject object = scope.require(definition.key());
                 for (ObjectInitializer initializer : definition.initializers()) {
-                    initializer.initialize(scope, object);
+                    initializer.initialize(object);
                 }
             }
             for (ScopeDefinition definition : localDefinitions) {
                 ScopedObject object = scope.require(definition.key());
                 for (ObjectInitializer initializer : definition.activators()) {
-                    initializer.initialize(scope, object);
+                    initializer.initialize(object);
                 }
             }
             for (ScopeDefinition definition : localDefinitions) {
                 ScopedObject object = scope.require(definition.key());
                 for (ObjectInitializer initializer : definition.postInitializers()) {
-                    initializer.initialize(scope, object);
+                    initializer.initialize(object);
                 }
             }
             for (ScopeInitializer initializer : ((FibreImpl) Fibre.get()).getScopeInitializers()) {

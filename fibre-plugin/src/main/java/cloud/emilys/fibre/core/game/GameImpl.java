@@ -7,6 +7,7 @@ import cloud.emilys.fibre.api.event.GamePlayerAddEvent;
 import cloud.emilys.fibre.api.event.GamePlayerRemoveEvent;
 import cloud.emilys.fibre.api.game.Completion;
 import cloud.emilys.fibre.api.game.Game;
+import cloud.emilys.fibre.api.game.PlayerJoinToken;
 import cloud.emilys.fibre.api.game.Players;
 import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.Scope;
@@ -18,8 +19,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -35,6 +38,7 @@ final class GameImpl implements Game {
     private final GameManagerImpl manager;
     private final JavaPlugin plugin;
     private final Map<UUID, Player> players = new LinkedHashMap<>();
+    private final Set<PlayerJoinTokenImpl> pendingJoins = ConcurrentHashMap.newKeySet();
 
     private @Nullable Scope scope;
     private boolean closed;
@@ -110,19 +114,42 @@ final class GameImpl implements Game {
     }
 
     @Override
-    public boolean tryAddPlayer(Player player) {
+    public PlayerJoinToken createPlayerJoinToken(UUID playerId) {
         PrimaryThreadUtil.assertPrimary();
         this.assertActive();
+        return this.manager.createPlayerJoinToken(this, Objects.requireNonNull(playerId, "playerId"));
+    }
+
+    void trackPlayerJoinToken(PlayerJoinTokenImpl token) {
+        this.assertActive();
+        if (!this.pendingJoins.add(Objects.requireNonNull(token, "token"))) {
+            throw new IllegalStateException("Player join token is already owned by this game");
+        }
+    }
+
+    void releasePlayerJoinToken(PlayerJoinTokenImpl token) {
+        this.pendingJoins.remove(Objects.requireNonNull(token, "token"));
+    }
+
+    void finishPlayerJoin(PlayerJoinTokenImpl token, Player player) {
+        PrimaryThreadUtil.assertPrimary();
+        this.assertActive();
+        Objects.requireNonNull(token, "token");
         Objects.requireNonNull(player, "player");
+        if (!this.pendingJoins.remove(token)) {
+            throw new IllegalStateException("Player join token is not owned by this game");
+        }
 
         UUID playerId = player.getUniqueId();
-        if (this.players.containsKey(playerId) || this.manager.findGame(player).isPresent()) {
-            return false;
+        if (this.players.putIfAbsent(playerId, player) != null) {
+            throw new IllegalStateException("Player is already in this game");
         }
-        this.manager.addPlayer(this, player);
-        this.players.put(playerId, player);
-        Bukkit.getPluginManager().callEvent(new GamePlayerAddEvent(this, player));
-        return true;
+        try {
+            Bukkit.getPluginManager().callEvent(new GamePlayerAddEvent(this, player));
+        } catch (RuntimeException | Error failure) {
+            this.players.remove(playerId, player);
+            throw failure;
+        }
     }
 
     @Override
@@ -130,14 +157,15 @@ final class GameImpl implements Game {
         PrimaryThreadUtil.assertPrimary();
         this.assertActive();
         Objects.requireNonNull(player, "player");
-
         UUID playerId = player.getUniqueId();
-        if (!this.players.containsKey(playerId)) {
+        Player registered = this.players.get(playerId);
+        if (registered == null) {
             return false;
         }
-        this.manager.removePlayer(this, player);
+
+        this.manager.removePlayer(this, registered);
         this.players.remove(playerId);
-        Bukkit.getPluginManager().callEvent(new GamePlayerRemoveEvent(this, player));
+        Bukkit.getPluginManager().callEvent(new GamePlayerRemoveEvent(this, registered));
         return true;
     }
 
@@ -186,13 +214,16 @@ final class GameImpl implements Game {
 
     private void beginClose() {
         this.closed = true;
+        for (PlayerJoinTokenImpl token : List.copyOf(this.pendingJoins)) {
+            token.cancel();
+        }
         for (Player player : List.copyOf(this.players.values())) {
-            this.manager.removePlayer(this, player);
-            this.players.remove(player.getUniqueId());
             try {
+                this.manager.removePlayer(this, player);
+                this.players.remove(player.getUniqueId());
                 Bukkit.getPluginManager().callEvent(new GamePlayerRemoveEvent(this, player));
-            } catch (Exception e) {
-                this.plugin.getLogger().log(Level.WARNING, "An exception was thrown when closing game", e);
+            } catch (Exception exception) {
+                this.plugin.getLogger().log(Level.WARNING, "An exception was thrown when closing game", exception);
             }
         }
         this.manager.removeGameInstance(this);

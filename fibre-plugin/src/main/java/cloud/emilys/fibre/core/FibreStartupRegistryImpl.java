@@ -2,6 +2,7 @@ package cloud.emilys.fibre.core;
 
 import cloud.emilys.fibre.api.FibreStartupRegistry;
 import cloud.emilys.fibre.api.fact.FactScanner;
+import cloud.emilys.fibre.api.game.PlayerPreloader;
 import cloud.emilys.fibre.api.scope.discovery.ScopeContributor;
 import cloud.emilys.fibre.api.scope.lifecycle.ScopeInitializer;
 import cloud.emilys.fibre.api.type.TypeFinder;
@@ -18,10 +19,17 @@ import org.jspecify.annotations.NullMarked;
 public final class FibreStartupRegistryImpl implements FibreStartupRegistry {
 
     private List<FactScanner> factScanners = new ArrayList<>();
+    private List<PlayerPreloader> playerPreloaders = new ArrayList<>();
     private List<ScopeContributor> scopeContributors = new ArrayList<>();
     private List<ScopeInitializer> scopeInitializers = new ArrayList<>();
     private Map<TypeFinderKey, RegisteredTypeFinder<?, ?>> typeFinders = new LinkedHashMap<>();
     private boolean frozen;
+
+    @Override
+    public void registerPlayerPreloader(PlayerPreloader preloader) {
+        this.assertMutable();
+        this.playerPreloaders.add(Objects.requireNonNull(preloader, "preloader"));
+    }
 
     @Override
     public void registerFactScanner(FactScanner factScanner) {
@@ -56,6 +64,10 @@ public final class FibreStartupRegistryImpl implements FibreStartupRegistry {
         return List.copyOf(this.factScanners);
     }
 
+    List<PlayerPreloader> getPlayerPreloaders() {
+        return List.copyOf(this.playerPreloaders);
+    }
+
     List<ScopeContributor> getScopeContributors() {
         return List.copyOf(this.scopeContributors);
     }
@@ -73,6 +85,7 @@ public final class FibreStartupRegistryImpl implements FibreStartupRegistry {
             return;
         }
         this.factScanners = List.copyOf(this.factScanners);
+        this.playerPreloaders = List.copyOf(this.playerPreloaders);
         this.scopeContributors = List.copyOf(this.scopeContributors);
         this.scopeInitializers = List.copyOf(this.scopeInitializers);
         this.typeFinders = Collections.unmodifiableMap(new LinkedHashMap<>(this.typeFinders));

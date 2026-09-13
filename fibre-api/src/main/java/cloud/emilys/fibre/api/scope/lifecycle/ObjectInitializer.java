@@ -1,6 +1,5 @@
 package cloud.emilys.fibre.api.scope.lifecycle;
 
-import cloud.emilys.fibre.api.scope.ScopeResolver;
 import cloud.emilys.fibre.api.scope.ScopedObject;
 import cloud.emilys.fibre.api.scope.binding.DependencySet;
 import org.jspecify.annotations.NullMarked;
@@ -12,5 +11,5 @@ public interface ObjectInitializer {
         return DependencySet.create();
     }
 
-    void initialize(ScopeResolver resolver, ScopedObject object);
+    void initialize(ScopedObject object);
 }

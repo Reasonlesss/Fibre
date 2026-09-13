@@ -11,6 +11,8 @@ import cloud.emilys.fibre.core.fact.FactIndexImpl;
 import cloud.emilys.fibre.core.game.GameManagerImpl;
 import cloud.emilys.fibre.core.type.TypeResolverImpl;
 import java.util.List;
+import java.util.Objects;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
@@ -18,10 +20,16 @@ import org.jspecify.annotations.Nullable;
 public final class FibreImpl implements Fibre {
 
     private final FibreStartupRegistryImpl registry = new FibreStartupRegistryImpl();
-    private final GameManager gameManager = new GameManagerImpl(this);
+    private final GameManagerImpl gameManager;
+    private final JavaPlugin plugin;
     private @Nullable FactIndex factIndex;
     private @Nullable TypeResolver typeResolver;
     private boolean ready;
+
+    public FibreImpl(JavaPlugin plugin) {
+        this.plugin = Objects.requireNonNull(plugin, "plugin");
+        this.gameManager = new GameManagerImpl(this, this.registry::getPlayerPreloaders, plugin);
+    }
 
     @Override
     public FibreStartupRegistry getStartupRegistry() {
@@ -70,6 +78,7 @@ public final class FibreImpl implements Fibre {
         this.factIndex = new FactIndexImpl(this.registry.getFactScanners());
         this.typeResolver = new TypeResolverImpl(this.registry.getTypeFinders());
         this.ready = true;
+        this.plugin.getServer().getPluginManager().registerEvents(this.gameManager, this.plugin);
     }
 
     @Override

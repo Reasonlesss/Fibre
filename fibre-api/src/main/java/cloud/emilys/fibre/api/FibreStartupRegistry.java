@@ -1,6 +1,7 @@
 package cloud.emilys.fibre.api;
 
 import cloud.emilys.fibre.api.fact.FactScanner;
+import cloud.emilys.fibre.api.game.PlayerPreloader;
 import cloud.emilys.fibre.api.scope.discovery.ScopeContributor;
 import cloud.emilys.fibre.api.scope.lifecycle.ScopeInitializer;
 import cloud.emilys.fibre.api.type.TypeFinder;
@@ -8,6 +9,8 @@ import org.jspecify.annotations.NullMarked;
 
 @NullMarked
 public interface FibreStartupRegistry {
+
+    void registerPlayerPreloader(PlayerPreloader preloader);
 
     void registerFactScanner(FactScanner factScanner);
 

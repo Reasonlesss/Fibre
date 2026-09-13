@@ -19,7 +19,7 @@ public final class EventContributor implements ScopeContributor {
     @SuppressWarnings("unchecked")
     @Override
     public void contribute(ScopeCollector collector, ObjectKey key) {
-        collector.initialize(key, (resolver, object) -> {
+        collector.initialize(key, object -> {
             Optional<List<EventMethod>> methods = object.getFacts().get(EventFacts.METHODS);
             if (methods.isEmpty()) {
                 return;
