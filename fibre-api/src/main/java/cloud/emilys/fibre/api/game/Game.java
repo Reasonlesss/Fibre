@@ -15,7 +15,7 @@ public interface Game extends RuntimeDataOwner {
 
     Scope getRootScope();
 
-    PlayerJoinToken createPlayerJoinToken(UUID playerId);
+    void join(UUID playerId);
 
     boolean removePlayer(Player player);
 

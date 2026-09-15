@@ -3,6 +3,7 @@ package cloud.emilys.fibre.features.playerpreload;
 import cloud.emilys.fibre.api.PrimaryThreadUtil;
 import cloud.emilys.fibre.api.event.GamePlayerRemoveEvent;
 import cloud.emilys.fibre.api.game.Game;
+import cloud.emilys.fibre.api.game.PlayerJoinToken;
 import cloud.emilys.fibre.api.game.PlayerPreloader;
 import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.Scope;
@@ -35,7 +36,9 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
     }
 
     @Override
-    public CompletionStage<?> preload(Game game, UUID playerId) {
+    public void preload(PlayerJoinToken token) {
+        Game game = token.getGame();
+        UUID playerId = token.getPlayerId();
         if (!this.listening) {
             this.plugin.getServer().getPluginManager().registerEvents(this, this.plugin);
             this.listening = true;
@@ -67,7 +70,7 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
                     }
                 },
                 primaryExecutor);
-        return result;
+        token.waitFor(result);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

@@ -7,7 +7,6 @@ import cloud.emilys.fibre.api.event.GamePlayerAddEvent;
 import cloud.emilys.fibre.api.event.GamePlayerRemoveEvent;
 import cloud.emilys.fibre.api.game.Completion;
 import cloud.emilys.fibre.api.game.Game;
-import cloud.emilys.fibre.api.game.PlayerJoinToken;
 import cloud.emilys.fibre.api.game.Players;
 import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.Scope;
@@ -114,10 +113,10 @@ final class GameImpl implements Game {
     }
 
     @Override
-    public PlayerJoinToken createPlayerJoinToken(UUID playerId) {
+    public void join(UUID playerId) {
         PrimaryThreadUtil.assertPrimary();
         this.assertActive();
-        return this.manager.createPlayerJoinToken(this, Objects.requireNonNull(playerId, "playerId"));
+        this.manager.join(this, Objects.requireNonNull(playerId, "playerId"));
     }
 
     void trackPlayerJoinToken(PlayerJoinTokenImpl token) {
