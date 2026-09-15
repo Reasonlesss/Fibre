@@ -27,7 +27,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.Plugin;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
@@ -35,14 +35,14 @@ public final class GameManagerImpl implements GameManager, Listener {
 
     private final Fibre api;
     private final Supplier<List<PlayerPreloader>> playerPreloaders;
-    private final JavaPlugin plugin;
+    private final Plugin plugin;
     private final Object membershipLock = new Object();
     private final Set<GameImpl> instances = new LinkedHashSet<>();
     // Unpublished reservations block duplicates without exposing a token before its initializers finish.
     private final Map<UUID, PlayerJoinReservation> pendingJoins = new ConcurrentHashMap<>();
     private final Map<UUID, GameImpl> gamesByPlayer = new ConcurrentHashMap<>();
 
-    public GameManagerImpl(Fibre api, Supplier<List<PlayerPreloader>> playerPreloaders, JavaPlugin plugin) {
+    public GameManagerImpl(Fibre api, Supplier<List<PlayerPreloader>> playerPreloaders, Plugin plugin) {
         this.api = Objects.requireNonNull(api, "api");
         this.playerPreloaders = Objects.requireNonNull(playerPreloaders, "playerPreloaders");
         this.plugin = Objects.requireNonNull(plugin, "plugin");
@@ -107,7 +107,7 @@ public final class GameManagerImpl implements GameManager, Listener {
         return this.api.getTypeResolver().find(object, Game.class).filter(this::isRegistered);
     }
 
-    PlayerJoinTokenImpl createPlayerJoinToken(GameImpl game, UUID playerId) {
+    void join(GameImpl game, UUID playerId) {
         PrimaryThreadUtil.assertPrimary();
         this.assertRegistered(game);
         Objects.requireNonNull(playerId, "playerId");
@@ -125,17 +125,15 @@ public final class GameManagerImpl implements GameManager, Listener {
             if (player != null && player.isOnline()) {
                 this.joinWhenReady(token, player);
             }
-            return token;
         } catch (RuntimeException | Error failure) {
             token.cancel();
             throw failure;
         }
     }
 
-    private void initializePlayerJoinToken(PlayerJoinToken token) {
+    void initializePlayerJoinToken(PlayerJoinToken token) {
         for (PlayerPreloader preloader : this.playerPreloaders.get()) {
-            token.waitFor(Objects.requireNonNull(
-                    preloader.preload(token.getGame(), token.getPlayerId()), "Player preloader returned null"));
+            preloader.preload(token);
         }
     }
 

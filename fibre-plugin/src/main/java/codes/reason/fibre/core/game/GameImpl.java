@@ -7,7 +7,6 @@ import codes.reason.fibre.api.event.GamePlayerAddEvent;
 import codes.reason.fibre.api.event.GamePlayerRemoveEvent;
 import codes.reason.fibre.api.game.Completion;
 import codes.reason.fibre.api.game.Game;
-import codes.reason.fibre.api.game.PlayerJoinToken;
 import codes.reason.fibre.api.game.Players;
 import codes.reason.fibre.api.scope.ObjectKey;
 import codes.reason.fibre.api.scope.Scope;
@@ -114,10 +113,10 @@ final class GameImpl implements Game {
     }
 
     @Override
-    public PlayerJoinToken createPlayerJoinToken(UUID playerId) {
+    public void join(UUID playerId) {
         PrimaryThreadUtil.assertPrimary();
         this.assertActive();
-        return this.manager.createPlayerJoinToken(this, Objects.requireNonNull(playerId, "playerId"));
+        this.manager.join(this, Objects.requireNonNull(playerId, "playerId"));
     }
 
     void trackPlayerJoinToken(PlayerJoinTokenImpl token) {

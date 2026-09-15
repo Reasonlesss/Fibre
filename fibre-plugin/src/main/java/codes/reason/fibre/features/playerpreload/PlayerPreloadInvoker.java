@@ -3,6 +3,7 @@ package codes.reason.fibre.features.playerpreload;
 import codes.reason.fibre.api.PrimaryThreadUtil;
 import codes.reason.fibre.api.event.GamePlayerRemoveEvent;
 import codes.reason.fibre.api.game.Game;
+import codes.reason.fibre.api.game.PlayerJoinToken;
 import codes.reason.fibre.api.game.PlayerPreloader;
 import codes.reason.fibre.api.scope.ObjectKey;
 import codes.reason.fibre.api.scope.Scope;
@@ -35,7 +36,9 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
     }
 
     @Override
-    public CompletionStage<?> preload(Game game, UUID playerId) {
+    public void preload(PlayerJoinToken token) {
+        Game game = token.getGame();
+        UUID playerId = token.getPlayerId();
         if (!this.listening) {
             this.plugin.getServer().getPluginManager().registerEvents(this, this.plugin);
             this.listening = true;
@@ -67,7 +70,7 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
                     }
                 },
                 primaryExecutor);
-        return result;
+        token.waitFor(result);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
