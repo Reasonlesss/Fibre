@@ -41,6 +41,9 @@ public final class PlayerPreloadFactScanner implements FactScanner {
             }
             methods.add(method);
         }
+        if (methods.isEmpty()) {
+            return;
+        }
         context.put(PlayerPreloadFacts.METHODS, methods);
     }
 }
