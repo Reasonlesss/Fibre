@@ -42,6 +42,12 @@ public interface PlayerJoinToken {
     PlayerJoinToken commitWhenReady();
 
     /**
+     * Holds the player's login until preloading has finished, and refuses it if preloading fails. Without this, a player
+     * can log in while their data is still loading.
+     */
+    PlayerJoinToken deferLogin();
+
+    /**
      * Cancels the join and discards its preloaded data.
      *
      * @return {@code false} if the token has already committed, been cancelled or failed
