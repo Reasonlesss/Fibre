@@ -29,6 +29,8 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
 
     private State state = State.PRELOADING;
     private boolean autoCommit;
+    // Read by the asynchronous pre-login listener.
+    private volatile boolean deferLogin;
 
     PlayerJoinTokenImpl(GameImpl game, GameManagerImpl manager, UUID playerId) {
         this.game = Objects.requireNonNull(game, "game");
@@ -95,6 +97,13 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
     }
 
     @Override
+    public PlayerJoinToken deferLogin() {
+        PrimaryThreadUtil.assertPrimary();
+        this.deferLogin = true;
+        return this;
+    }
+
+    @Override
     public boolean cancel() {
         PrimaryThreadUtil.assertPrimary();
         if (this.state != State.PRELOADING && this.state != State.WAITING) {
@@ -115,6 +124,10 @@ final class PlayerJoinTokenImpl implements PlayerJoinToken {
 
     boolean isAutoCommit() {
         return this.autoCommit;
+    }
+
+    boolean isDeferringLogin() {
+        return this.deferLogin;
     }
 
     /** Stops accepting preload work and starts waiting for the work already added. */

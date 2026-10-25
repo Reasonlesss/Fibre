@@ -262,6 +262,7 @@ public final class GameManagerImpl implements GameManager, Listener {
         UUID playerId = event.getUniqueId();
         try {
             this.findToken(playerId)
+                    .filter(PlayerJoinTokenImpl::isDeferringLogin)
                     .ifPresent(token -> token.ready().toCompletableFuture().join());
         } catch (CompletionException | CancellationException failure) {
             event.disallow(
