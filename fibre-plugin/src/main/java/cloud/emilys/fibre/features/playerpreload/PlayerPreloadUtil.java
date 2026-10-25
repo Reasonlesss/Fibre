@@ -53,15 +53,15 @@ final class PlayerPreloadUtil {
     }
 
     static void putScope(Map<UUID, CompletionStage<Scope>> scopes, UUID playerId, CompletionStage<Scope> scope) {
-        if (scopes.containsKey(playerId)) {
-            scopes.remove(playerId).toCompletableFuture().cancel(true);
+        if (scopes.putIfAbsent(playerId, scope) != null) {
+            throw new IllegalStateException("Player %s already has a preloaded scope".formatted(playerId));
         }
-        scopes.put(playerId, scope);
     }
 
     static void closeScope(Map<UUID, CompletionStage<Scope>> scopes, UUID playerId) {
-        if (scopes.containsKey(playerId)) {
-            scopes.remove(playerId).toCompletableFuture().cancel(true);
+        CompletionStage<Scope> scope = scopes.remove(playerId);
+        if (scope != null) {
+            scope.thenAccept(Scope::close);
         }
     }
 

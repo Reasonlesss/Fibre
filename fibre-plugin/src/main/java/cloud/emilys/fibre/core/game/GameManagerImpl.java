@@ -7,6 +7,8 @@ import cloud.emilys.fibre.api.game.GameBuilder;
 import cloud.emilys.fibre.api.game.GameManager;
 import cloud.emilys.fibre.api.game.PlayerJoinToken;
 import cloud.emilys.fibre.api.game.PlayerPreloader;
+import cloud.emilys.fibre.api.game.PreloadSink;
+import cloud.emilys.fibre.core.util.ExceptionUtil;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +18,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
@@ -82,7 +86,13 @@ public final class GameManagerImpl implements GameManager, Listener {
         return List.copyOf(this.instances);
     }
 
-    private Optional<PlayerJoinTokenImpl> findPlayerJoinToken(UUID playerId) {
+    @Override
+    public Optional<PlayerJoinToken> findPlayerJoinToken(UUID playerId) {
+        PrimaryThreadUtil.assertPrimary();
+        return this.findToken(playerId).filter(PlayerJoinTokenImpl::isPending).map(PlayerJoinToken.class::cast);
+    }
+
+    private Optional<PlayerJoinTokenImpl> findToken(UUID playerId) {
         Objects.requireNonNull(playerId, "playerId");
         PlayerJoinReservation reservation = this.pendingJoins.get(playerId);
         if (reservation == null || !reservation.isPublished()) {
@@ -107,36 +117,48 @@ public final class GameManagerImpl implements GameManager, Listener {
         return this.api.getTypeResolver().find(object, Game.class).filter(this::isRegistered);
     }
 
-    PlayerJoinTokenImpl createPlayerJoinToken(GameImpl game, UUID playerId) {
+    PlayerJoinTokenImpl addPlayer(GameImpl game, UUID playerId, Consumer<? super PreloadSink> preload) {
         PrimaryThreadUtil.assertPrimary();
         this.assertRegistered(game);
         Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(preload, "preload");
 
-        PlayerJoinTokenImpl token = new PlayerJoinTokenImpl(game, playerId, this::releaseToken);
+        PlayerJoinTokenImpl token = new PlayerJoinTokenImpl(game, this, playerId);
         if (!this.reservePlayerJoinToken(token)) {
             throw new IllegalStateException("Player already has a pending join");
         }
 
         try {
             game.trackPlayerJoinToken(token);
-            this.initializePlayerJoinToken(token);
-            this.publishPlayerJoinToken(token);
-            Player player = Bukkit.getPlayer(playerId);
-            if (player != null && player.isOnline()) {
-                this.joinWhenReady(token, player);
+            for (PlayerPreloader preloader : this.playerPreloaders.get()) {
+                preloader.preload(game, playerId, token.getSink());
             }
-            return token;
+            preload.accept(token.getSink());
+            this.publishPlayerJoinToken(token);
         } catch (RuntimeException | Error failure) {
             token.cancel();
             throw failure;
         }
+        // Sealed after publishing so a preload that has already failed leaves a failed token rather than throwing.
+        token.seal();
+        return token;
     }
 
-    private void initializePlayerJoinToken(PlayerJoinToken token) {
-        for (PlayerPreloader preloader : this.playerPreloaders.get()) {
-            token.waitFor(Objects.requireNonNull(
-                    preloader.preload(token.getGame(), token.getPlayerId()), "Player preloader returned null"));
-        }
+    CompletionStage<Player> commit(PlayerJoinTokenImpl token) {
+        PrimaryThreadUtil.assertPrimary();
+        return token.ready()
+                .thenComposeAsync(
+                        _ -> {
+                            if (token.isPending()) {
+                                Player player = Bukkit.getPlayer(token.getPlayerId());
+                                if (player == null || !player.isOnline()) {
+                                    throw new IllegalStateException("Player is not online");
+                                }
+                                this.joinToken(token, player);
+                            }
+                            return token.committed();
+                        },
+                        PrimaryThreadUtil.createExecutor(this.plugin));
     }
 
     boolean reservePlayerJoinToken(PlayerJoinTokenImpl token) {
@@ -159,8 +181,9 @@ public final class GameManagerImpl implements GameManager, Listener {
         }
     }
 
-    void releasePlayerJoinToken(PlayerJoinTokenImpl token) {
+    void releaseToken(PlayerJoinTokenImpl token) {
         Objects.requireNonNull(token, "token");
+        ((GameImpl) token.getGame()).releasePlayerJoinToken(token);
         synchronized (this.membershipLock) {
             PlayerJoinReservation reservation = this.pendingJoins.get(token.getPlayerId());
             if (reservation != null && reservation.token() == token) {
@@ -209,52 +232,54 @@ public final class GameManagerImpl implements GameManager, Listener {
                 }
             }
             game.finishPlayerJoin(token, player);
-            token.joined();
         } catch (RuntimeException | Error failure) {
             synchronized (this.membershipLock) {
                 this.gamesByPlayer.remove(playerId, game);
             }
-            game.releasePlayerJoinToken(token);
-            token.failed();
+            token.fail(failure);
             throw failure;
         }
+        token.joined(player);
     }
 
-    private void joinWhenReady(PlayerJoinTokenImpl token, Player player) {
-        token.readiness().whenComplete((_, failure) -> {
-            if (failure != null) {
-                this.plugin
-                        .getLogger()
-                        .log(Level.SEVERE, "Could not prepare game data for player " + token.getPlayerId(), failure);
-                return;
-            }
-            Bukkit.getScheduler().runTask(this.plugin, () -> {
-                if (player.isOnline()
-                        && this.findPlayerJoinToken(player.getUniqueId()).orElse(null) == token) {
-                    this.joinToken(token, player);
-                }
-            });
-        });
+    void joinWhenReady(PlayerJoinTokenImpl token) {
+        token.ready()
+                .thenRunAsync(
+                        () -> {
+                            Player player = Bukkit.getPlayer(token.getPlayerId());
+                            if (player != null
+                                    && player.isOnline()
+                                    && token.isPending()
+                                    && this.findToken(token.getPlayerId()).orElse(null) == token) {
+                                this.joinToken(token, player);
+                            }
+                        },
+                        PrimaryThreadUtil.createExecutor(this.plugin));
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
         UUID playerId = event.getUniqueId();
         try {
-            this.findPlayerJoinToken(playerId)
-                    .ifPresent(token -> token.readiness().join());
+            this.findToken(playerId)
+                    .ifPresent(token -> token.ready().toCompletableFuture().join());
         } catch (CompletionException | CancellationException failure) {
             event.disallow(
                     AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                     "Your game data could not be prepared. Please try again.");
-            this.plugin.getLogger().log(Level.SEVERE, "Could not prepare game data for player " + playerId, failure);
+            if (!(ExceptionUtil.unwrap(failure) instanceof CancellationException)) {
+                this.plugin
+                        .getLogger()
+                        .log(Level.SEVERE, "Could not prepare game data for player " + playerId, failure);
+            }
         }
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
-        this.findPlayerJoinToken(event.getPlayer().getUniqueId())
-                .ifPresent(token -> this.joinToken(token, event.getPlayer()));
+        this.findToken(event.getPlayer().getUniqueId())
+                .filter(PlayerJoinTokenImpl::isAutoCommit)
+                .ifPresent(this::joinWhenReady);
     }
 
     @EventHandler
@@ -263,11 +288,6 @@ public final class GameManagerImpl implements GameManager, Listener {
         if (game != null) {
             game.removePlayer(event.getPlayer());
         }
-    }
-
-    private void releaseToken(PlayerJoinTokenImpl token) {
-        this.releasePlayerJoinToken(token);
-        ((GameImpl) token.getGame()).releasePlayerJoinToken(token);
     }
 
     private boolean isRegistered(Game game) {

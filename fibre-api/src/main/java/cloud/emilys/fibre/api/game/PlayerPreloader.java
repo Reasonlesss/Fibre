@@ -1,7 +1,6 @@
 package cloud.emilys.fibre.api.game;
 
 import java.util.UUID;
-import java.util.concurrent.CompletionStage;
 import org.jspecify.annotations.NullMarked;
 
 /** Starts deferred work that must finish before a reserved player is joined to a game. */
@@ -9,5 +8,5 @@ import org.jspecify.annotations.NullMarked;
 @NullMarked
 public interface PlayerPreloader {
 
-    CompletionStage<?> preload(Game game, UUID playerId);
+    void preload(Game game, UUID playerId, PreloadSink sink);
 }

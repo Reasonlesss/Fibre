@@ -9,6 +9,7 @@ import cloud.emilys.fibre.api.game.Completion;
 import cloud.emilys.fibre.api.game.Game;
 import cloud.emilys.fibre.api.game.PlayerJoinToken;
 import cloud.emilys.fibre.api.game.Players;
+import cloud.emilys.fibre.api.game.PreloadSink;
 import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.Scope;
 import cloud.emilys.fibre.api.scope.creation.ScopeBlueprint;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -114,10 +116,10 @@ final class GameImpl implements Game {
     }
 
     @Override
-    public PlayerJoinToken createPlayerJoinToken(UUID playerId) {
+    public PlayerJoinToken addPlayer(UUID playerId, Consumer<? super PreloadSink> preload) {
         PrimaryThreadUtil.assertPrimary();
         this.assertActive();
-        return this.manager.createPlayerJoinToken(this, Objects.requireNonNull(playerId, "playerId"));
+        return this.manager.addPlayer(this, Objects.requireNonNull(playerId, "playerId"), preload);
     }
 
     void trackPlayerJoinToken(PlayerJoinTokenImpl token) {
