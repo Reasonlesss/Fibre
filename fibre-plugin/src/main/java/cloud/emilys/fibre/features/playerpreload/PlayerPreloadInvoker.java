@@ -4,6 +4,7 @@ import cloud.emilys.fibre.api.PrimaryThreadUtil;
 import cloud.emilys.fibre.api.event.GamePlayerRemoveEvent;
 import cloud.emilys.fibre.api.game.Game;
 import cloud.emilys.fibre.api.game.PlayerPreloader;
+import cloud.emilys.fibre.api.game.PreloadSink;
 import cloud.emilys.fibre.api.scope.ObjectKey;
 import cloud.emilys.fibre.api.scope.Scope;
 import cloud.emilys.fibre.api.scope.creation.ScopeBlueprint;
@@ -13,9 +14,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -35,7 +38,7 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
     }
 
     @Override
-    public CompletionStage<?> preload(Game game, UUID playerId) {
+    public void preload(Game game, UUID playerId, PreloadSink sink) {
         if (!this.listening) {
             this.plugin.getServer().getPluginManager().registerEvents(this, this.plugin);
             this.listening = true;
@@ -51,23 +54,25 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
                 .map(CompletionStage::toCompletableFuture)
                 .toArray(CompletableFuture<?>[]::new);
         Executor primaryExecutor = PrimaryThreadUtil.createExecutor(game.getPlugin());
+        AtomicBoolean cancelled = new AtomicBoolean();
         CompletionStage<Scope> preload = CompletableFuture.allOf(stages)
-                .thenComposeAsync(_ -> createScope(game, playerId, invocations), primaryExecutor);
+                .thenComposeAsync(
+                        _ -> {
+                            if (cancelled.get()) {
+                                throw new CancellationException(
+                                        "Player join was cancelled before its scope was created");
+                            }
+                            return createScope(game, playerId, invocations);
+                        },
+                        primaryExecutor);
         Map<UUID, CompletionStage<Scope>> scopes =
                 game.getRootScope().getOrPut(PlayerPreloadDataKeys.SCOPES, LinkedHashMap::new);
-        PlayerScopeStage result = new PlayerScopeStage(scopes, playerId, primaryExecutor);
-        PlayerPreloadUtil.putScope(scopes, playerId, result);
-        preload.whenCompleteAsync(
-                (scope, failure) -> {
-                    if (failure != null) {
-                        PlayerPreloadUtil.removeScope(scopes, playerId, result);
-                        result.completeExceptionally(failure);
-                    } else if (!result.complete(scope)) {
-                        scope.close();
-                    }
-                },
-                primaryExecutor);
-        return result;
+        PlayerPreloadUtil.putScope(scopes, playerId, preload);
+        sink.add(preload, Scope::close);
+        sink.onCancel(() -> {
+            cancelled.set(true);
+            PlayerPreloadUtil.removeScope(scopes, playerId, preload);
+        });
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -108,29 +113,4 @@ public final class PlayerPreloadInvoker implements PlayerPreloader, Listener {
     private record Invocation(ObjectKey key, CompletionStage<?> stage) {}
 
     private static final class PlayerScopeStub {}
-
-    private static final class PlayerScopeStage extends CompletableFuture<Scope> {
-
-        private final Map<UUID, CompletionStage<Scope>> scopes;
-        private final UUID playerId;
-        private final Executor primaryExecutor;
-
-        private PlayerScopeStage(Map<UUID, CompletionStage<Scope>> scopes, UUID playerId, Executor primaryExecutor) {
-            this.scopes = scopes;
-            this.playerId = playerId;
-            this.primaryExecutor = primaryExecutor;
-        }
-
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            boolean cancelled = super.cancel(mayInterruptIfRunning);
-            this.primaryExecutor.execute(() -> {
-                PlayerPreloadUtil.removeScope(this.scopes, this.playerId, this);
-                if (!cancelled) {
-                    this.thenAccept(Scope::close);
-                }
-            });
-            return cancelled;
-        }
-    }
 }
