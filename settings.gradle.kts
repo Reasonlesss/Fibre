@@ -11,7 +11,9 @@ dependencyResolutionManagement {
 }
 
 include(
+    "fibre-processor",
     "fibre-api",
+    "fibre-core",
     "fibre-plugin",
     "fibre-plugin-legacy",
     "fibre-plugin-modern"
