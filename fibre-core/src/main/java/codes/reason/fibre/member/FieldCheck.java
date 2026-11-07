@@ -15,10 +15,7 @@ public final class FieldCheck {
     public FieldCheck type(Class<?> type) {
         Class<?> actual = this.field.field().getType();
         if (actual != type) {
-            this.problems.add("must be %s, but is %s".formatted(
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("must be %s, but is %s".formatted(type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -26,10 +23,8 @@ public final class FieldCheck {
     public FieldCheck typeSubtype(Class<?> type) {
         Class<?> actual = this.field.field().getType();
         if (!type.isAssignableFrom(actual)) {
-            this.problems.add("must be %s or a subtype, but is %s".formatted(
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add(
+                    "must be %s or a subtype, but is %s".formatted(type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -37,10 +32,7 @@ public final class FieldCheck {
     public FieldCheck typeAccepts(Class<?> type) {
         Class<?> actual = this.field.field().getType();
         if (!actual.isAssignableFrom(type)) {
-            this.problems.add("must accept %s, but is %s".formatted(
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("must accept %s, but is %s".formatted(type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -56,9 +48,7 @@ public final class FieldCheck {
         if (this.problems.isEmpty()) {
             return this.field;
         }
-        throw new IllegalStateException("%s is not a valid %s field:\n - %s".formatted(
-            this.field, role, String.join("\n - ", this.problems)
-        ));
+        throw new IllegalStateException(
+                "%s is not a valid %s field:\n - %s".formatted(this.field, role, String.join("\n - ", this.problems)));
     }
-
 }

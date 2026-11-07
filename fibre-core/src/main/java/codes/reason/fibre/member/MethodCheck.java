@@ -15,10 +15,7 @@ public final class MethodCheck {
     public MethodCheck returns(Class<?> type) {
         Class<?> actual = this.method.method().getReturnType();
         if (actual != type) {
-            this.problems.add("must return %s, but returns %s".formatted(
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("must return %s, but returns %s".formatted(type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -26,10 +23,8 @@ public final class MethodCheck {
     public MethodCheck returnsSubtype(Class<?> type) {
         Class<?> actual = this.method.method().getReturnType();
         if (!type.isAssignableFrom(actual)) {
-            this.problems.add("must return %s or a subtype, but returns %s".formatted(
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("must return %s or a subtype, but returns %s"
+                    .formatted(type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -37,9 +32,7 @@ public final class MethodCheck {
     public MethodCheck parameterCount(int count) {
         int actual = this.method.method().getParameterCount();
         if (actual != count) {
-            this.problems.add("must take %d parameter%s, but takes %d".formatted(
-                    count, count == 1 ? "" : "s", actual
-            ));
+            this.problems.add("must take %d parameter%s, but takes %d".formatted(count, count == 1 ? "" : "s", actual));
         }
         return this;
     }
@@ -50,11 +43,8 @@ public final class MethodCheck {
         }
         Class<?> actual = this.method.method().getParameterTypes()[index];
         if (actual != type) {
-            this.problems.add("parameter %d must be %s, but is %s".formatted(
-                    index,
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("parameter %d must be %s, but is %s"
+                    .formatted(index, type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -65,11 +55,8 @@ public final class MethodCheck {
         }
         Class<?> actual = this.method.method().getParameterTypes()[index];
         if (!actual.isAssignableFrom(type)) {
-            this.problems.add("parameter %d must accept %s, but is %s".formatted(
-                    index,
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("parameter %d must accept %s, but is %s"
+                    .formatted(index, type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -80,11 +67,8 @@ public final class MethodCheck {
         }
         Class<?> actual = this.method.method().getParameterTypes()[index];
         if (!type.isAssignableFrom(actual)) {
-            this.problems.add("parameter %d must be %s or a subtype, but is %s".formatted(
-                    index,
-                    type.getSimpleName(),
-                    actual.getSimpleName()
-            ));
+            this.problems.add("parameter %d must be %s or a subtype, but is %s"
+                    .formatted(index, type.getSimpleName(), actual.getSimpleName()));
         }
         return this;
     }
@@ -93,9 +77,7 @@ public final class MethodCheck {
         if (this.problems.isEmpty()) {
             return this.method;
         }
-        throw new IllegalStateException("%s is not a valid %s method:\n - %s".formatted(
-            this.method, role, String.join("\n - ", this.problems)
-        ));
+        throw new IllegalStateException("%s is not a valid %s method:\n - %s"
+                .formatted(this.method, role, String.join("\n - ", this.problems)));
     }
-
 }

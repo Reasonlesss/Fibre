@@ -7,6 +7,6 @@ import org.jspecify.annotations.Nullable;
 @FunctionalInterface
 public interface Getter {
 
-    @Nullable Object get(Object target) throws Throwable;
-
+    @Nullable
+    Object get(Object target) throws Throwable;
 }
