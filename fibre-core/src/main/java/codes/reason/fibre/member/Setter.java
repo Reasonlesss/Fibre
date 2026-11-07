@@ -8,5 +8,4 @@ import org.jspecify.annotations.Nullable;
 public interface Setter {
 
     void set(Object target, @Nullable Object value) throws Throwable;
-
 }

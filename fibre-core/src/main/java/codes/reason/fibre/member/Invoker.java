@@ -7,6 +7,6 @@ import org.jspecify.annotations.Nullable;
 @FunctionalInterface
 public interface Invoker {
 
-    @Nullable Object invoke(Object target, @Nullable Object[] args) throws Throwable;
-
+    @Nullable
+    Object invoke(Object target, @Nullable Object[] args) throws Throwable;
 }

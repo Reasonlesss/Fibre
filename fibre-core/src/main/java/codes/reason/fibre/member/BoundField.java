@@ -1,11 +1,10 @@
 package codes.reason.fibre.member;
 
-import org.jspecify.annotations.NullMarked;
-import org.jspecify.annotations.Nullable;
-
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.util.Objects;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public final class BoundField {
@@ -24,6 +23,14 @@ public final class BoundField {
         this.setter = setter;
     }
 
+    public static Field lookup(Class<?> type, String name) {
+        try {
+            return type.getDeclaredField(name);
+        } catch (NoSuchFieldException e) {
+            throw new NoSuchFieldError(e.getMessage());
+        }
+    }
+
     public @Nullable Object get() throws Throwable {
         return this.getter.get(this.owner);
     }
@@ -33,14 +40,15 @@ public final class BoundField {
             throw new IllegalStateException("%s is not writable".formatted(this));
         }
         if (value == null && this.field.getType().isPrimitive()) {
-            throw new IllegalArgumentException("%s is %s and cannot be null".formatted(
-                    this, this.field.getType().getSimpleName()
-            ));
+            throw new IllegalArgumentException("%s is %s and cannot be null"
+                    .formatted(this, this.field.getType().getSimpleName()));
         }
         if (value != null && !wrap(this.field.getType()).isInstance(value)) {
-            throw new IllegalArgumentException("%s is %s, but got %s".formatted(
-                    this, this.field.getType().getSimpleName(), value.getClass().getSimpleName()
-            ));
+            throw new IllegalArgumentException("%s is %s, but got %s"
+                    .formatted(
+                            this,
+                            this.field.getType().getSimpleName(),
+                            value.getClass().getSimpleName()));
         }
         this.setter.set(this.owner, value);
     }
@@ -73,5 +81,4 @@ public final class BoundField {
     private static Class<?> wrap(Class<?> type) {
         return MethodType.methodType(type).wrap().returnType();
     }
-
 }

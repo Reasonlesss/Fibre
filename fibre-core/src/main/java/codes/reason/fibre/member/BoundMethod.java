@@ -1,12 +1,11 @@
 package codes.reason.fibre.member;
 
-import org.jspecify.annotations.NullMarked;
-import org.jspecify.annotations.Nullable;
-
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public final class BoundMethod {
@@ -23,11 +22,19 @@ public final class BoundMethod {
         this.invoker = Objects.requireNonNull(invoker, "invoker must not be null");
     }
 
+    public static Method lookup(Class<?> type, String name, Class<?>... parameters) {
+        try {
+            return type.getDeclaredMethod(name, parameters);
+        } catch (NoSuchMethodException e) {
+            throw new NoSuchMethodError(e.getMessage());
+        }
+    }
+
     public @Nullable Object invoke(@Nullable Object... args) throws Throwable {
         Objects.requireNonNull(args, "args must not be null");
         if (args.length != this.method.getParameterCount()) {
-            throw new IllegalArgumentException("%s takes %d parameters, but got %d"
-                    .formatted(this, this.method.getParameterCount(), args.length));
+            throw new IllegalArgumentException(
+                    "%s takes %d parameters, but got %d".formatted(this, this.method.getParameterCount(), args.length));
         }
         return this.invoker.invoke(this.owner, args);
     }
@@ -55,5 +62,4 @@ public final class BoundMethod {
                 .collect(Collectors.joining(", "));
         return "%s#%s(%s)".formatted(this.type.getSimpleName(), this.method.getName(), parameters);
     }
-
 }
