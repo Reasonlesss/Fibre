@@ -25,17 +25,29 @@ final class ScopeFactory {
 
         ScopeBuilder builder = new ScopeBuilder(parent);
         options.bindings().forEach((identity, value) -> builder.bind((Identity<Object>) identity, value));
+
+        ScopeInject inject = new ScopeInject(builder);
+        for (ScopePlugin plugin : options.plugins()) {
+            try {
+                plugin.inject(inject);
+            } catch (Throwable t) {
+                inject.end();
+                throw new IllegalStateException("Failed to inject plugin %s".formatted(plugin), t);
+            }
+        }
+        inject.end();
+
         blueprint.apply(builder);
         Scope scope = builder.build();
 
         ScopeSetup setup = new ScopeSetup(scope);
         for (ScopePlugin plugin : options.plugins()) {
             try {
-                plugin.apply(setup);
+                plugin.setup(setup);
             } catch (Throwable t) {
                 setup.end();
                 // the scope is never entered, so this only closes what the earlier plugins attached
-                throw closeAfter(scope, new IllegalStateException("Failed to apply plugin %s".formatted(plugin), t));
+                throw closeAfter(scope, new IllegalStateException("Failed to set up plugin %s".formatted(plugin), t));
             }
         }
         setup.end();
