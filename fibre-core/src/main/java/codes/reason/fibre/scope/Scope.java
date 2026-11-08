@@ -4,6 +4,7 @@ import codes.reason.fibre.identity.Identity;
 import codes.reason.fibre.member.BoundField;
 import codes.reason.fibre.member.BoundMethod;
 import codes.reason.fibre.plugin.Attachment;
+import codes.reason.fibre.plugin.ScopePlugin;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,7 +23,8 @@ public final class Scope extends ScopeContext implements AutoCloseable {
     final Map<Attachment<?>, Object> attachments = new HashMap<>();
     private final List<Scope> children = new ArrayList<>();
     final List<Runnable> enterMethods;
-    final ScopeHandle handle;
+    final List<ScopePlugin> plugins;
+    final Handle<Scope> handle;
     boolean entered;
     private final List<Runnable> exitMethods;
     private boolean closed;
@@ -35,7 +37,8 @@ public final class Scope extends ScopeContext implements AutoCloseable {
             Map<Class<? extends Annotation>, List<BoundField>> fieldsByAnnotation,
             List<Runnable> enterMethods,
             List<Runnable> exitMethods,
-            ScopeHandle handle) {
+            List<ScopePlugin> plugins,
+            Handle<Scope> handle) {
         super(
                 parent,
                 Map.copyOf(byIdentity),
@@ -44,6 +47,7 @@ public final class Scope extends ScopeContext implements AutoCloseable {
                 ScopeHelper.copyLists(fieldsByAnnotation));
         this.enterMethods = List.copyOf(enterMethods);
         this.exitMethods = new ArrayList<>(exitMethods);
+        this.plugins = List.copyOf(plugins);
         this.handle = handle;
         if (parent != null) {
             parent.ensureOpen();

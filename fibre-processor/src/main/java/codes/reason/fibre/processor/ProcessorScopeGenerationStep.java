@@ -11,29 +11,34 @@ import org.jspecify.annotations.NullMarked;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.DeclaredType;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 
 @NullMarked
 final class ProcessorScopeGenerationStep {
 
     private static final ClassName SCOPE_BLUEPRINT = ClassName.get("codes.reason.fibre.blueprint", "ScopeBlueprint");
-    private static final ClassName SCOPE_BUILDER = ClassName.get("codes.reason.fibre.scope", "ScopeBuilder");
 
     private final DependencyGraph graph;
     private final ManagedClass root;
     private final MethodSpec.Builder apply = MethodSpec.methodBuilder("apply")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
-            .addParameter(SCOPE_BUILDER, "builder");
+            .addParameter(ProcessorHelper.SCOPE_BUILDER, "builder");
     private final NameAllocator names = new NameAllocator();
     // single instances, which are reused for every dependency on them
     private final Map<Instance, String> instances = new HashMap<>();
     // every class built so far, so lists don't build a many class again
     private final Set<ManagedClass> built = new HashSet<>();
+    // the value each provider returned
+    private final Map<ManagedClass.Provider, String> provided = new HashMap<>();
+    // what handles refer to, built once whatever took the handle is
+    private final Queue<Runnable> handled = new ArrayDeque<>();
 
     private ProcessorScopeGenerationStep(DependencyGraph graph, ManagedClass root) {
         this.graph = graph;
@@ -44,8 +49,13 @@ final class ProcessorScopeGenerationStep {
     static JavaFile generate(DependencyGraph graph, ManagedClass root) {
         ProcessorScopeGenerationStep generator = new ProcessorScopeGenerationStep(graph, root);
         generator.visit(root, (DeclaredType) root.type().asType(), ownIdentity(root));
+        // children can require what a provider binds, so call the ones nothing here used too
+        root.providers().forEach(generator::provide);
+        while (!generator.handled.isEmpty()) {
+            generator.handled.remove().run();
+        }
 
-        ClassName blueprintName = GeneratedNames.blueprint(root.type());
+        ClassName blueprintName = ProcessorHelper.blueprintName(root.type());
         TypeSpec.Builder blueprint = TypeSpec.classBuilder(blueprintName)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addSuperinterface(SCOPE_BLUEPRINT)
@@ -63,12 +73,13 @@ final class ProcessorScopeGenerationStep {
             return existing;
         }
 
-        List<CodeBlock> arguments = ProcessorManageGenerationStep.members(managed).entrySet().stream()
-                .map(member -> this.get(managed, member.getKey(), member.getValue()))
+        Map<ManagedClass.Dependency, String> members = ProcessorManageGenerationStep.members(managed).dependencies();
+        List<CodeBlock> arguments = managed.suppliedDependencies().stream()
+                .map(dependency -> this.get(managed, dependency, members.get(dependency)))
                 .toList();
-        String name = this.names.newName(ProcessorManageGenerationStep.decapitalize(managed.type().getSimpleName().toString()));
+        String name = this.names.newName(ProcessorHelper.decapitalize(managed.type().getSimpleName().toString()));
         CodeBlock.Builder create = CodeBlock.builder()
-                .add("$T.$N(builder, $L", GeneratedNames.managed(managed.type()), ProcessorManageGenerationStep.CREATE, identity);
+                .add("$T.$N(builder, $L", ProcessorHelper.managedName(managed.type()), ProcessorHelper.CREATE, identity);
         arguments.forEach(argument -> create.add(", $L", argument));
         // var, since the class may not be visible here
         this.apply.addStatement("var $N = $L)", name, create.build());
@@ -80,10 +91,31 @@ final class ProcessorScopeGenerationStep {
         return name;
     }
 
+    private String provide(ManagedClass.Provider provider) {
+        String existing = this.provided.get(provider);
+        if (existing != null) {
+            return existing;
+        }
+
+        ProcessorManageGenerationStep.Members members = ProcessorManageGenerationStep.members(this.root);
+        CodeBlock arguments = provider.dependencies().stream()
+                .map(dependency -> this.get(this.root, dependency, members.dependencies().get(dependency)))
+                .collect(CodeBlock.joining(", "));
+        String name = this.names.newName(provider.method().getSimpleName().toString());
+        this.apply.addStatement("var $N = $T.$N($L)", name, this.root.type(), provider.method().getSimpleName().toString(), arguments);
+        this.apply.addStatement("builder.bind($T.$N, $N)", ProcessorHelper.managedName(this.root.type()), members.providers().get(provider), name);
+        this.provided.put(provider, name);
+        return name;
+    }
+
     private CodeBlock get(ManagedClass consumer, ManagedClass.Dependency dependency, String member) {
-        ClassName exposer = GeneratedNames.managed(consumer.type());
+        ClassName exposer = ProcessorHelper.managedName(consumer.type());
+        if (dependency.isScopeHandle()) {
+            return CodeBlock.of("builder.handle()");
+        }
         if (dependency.isList()) {
-            // build every implementation first so the list sees them
+            // call every provider and build every implementation first so the list sees them
+            this.graph.providers(dependency.requireListElement(), this.root).forEach(this::provide);
             for (ManagedClass implementation : this.graph.implementations(dependency.requireListElement(), this.root)) {
                 if (!this.built.contains(implementation)) {
                     this.visit(implementation, (DeclaredType) implementation.type().asType(), ownIdentity(implementation));
@@ -92,14 +124,26 @@ final class ProcessorScopeGenerationStep {
             return CodeBlock.of("$T.$N(builder)", exposer, member);
         }
         CodeBlock identity = CodeBlock.of("$T.$N", exposer, member);
+        if (dependency.isHandle()) {
+            this.handled.add(() -> this.target(dependency, identity));
+            return CodeBlock.of("builder.handle($L)", identity);
+        }
+        return this.target(dependency, identity);
+    }
+
+    private CodeBlock target(ManagedClass.Dependency dependency, CodeBlock identity) {
+        ManagedClass.Provider provider = this.graph.provider(dependency, this.root);
+        if (provider != null) {
+            return CodeBlock.of("$N", this.provide(provider));
+        }
         ManagedClass managed = this.graph.resolve(dependency, this.root);
         return managed != null
-                ? CodeBlock.of("$N", this.visit(managed, dependency.declaredType(), identity))
+                ? CodeBlock.of("$N", this.visit(managed, dependency.identityType(), identity))
                 : CodeBlock.of("builder.require($L)", identity);
     }
 
     private static CodeBlock ownIdentity(ManagedClass managed) {
-        return CodeBlock.of("$T.$N", GeneratedNames.managed(managed.type()), ProcessorManageGenerationStep.IDENTITY_FIELD);
+        return CodeBlock.of("$T.$N", ProcessorHelper.managedName(managed.type()), ProcessorHelper.IDENTITY_FIELD);
     }
 
     private record Instance(ManagedClass managed, TypeName type) {

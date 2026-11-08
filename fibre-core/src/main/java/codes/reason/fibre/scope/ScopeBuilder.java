@@ -3,6 +3,7 @@ package codes.reason.fibre.scope;
 import codes.reason.fibre.identity.Identity;
 import codes.reason.fibre.member.BoundField;
 import codes.reason.fibre.member.BoundMethod;
+import codes.reason.fibre.plugin.ScopePlugin;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,13 +17,13 @@ public final class ScopeBuilder extends ScopeContext {
 
     private final List<Runnable> enterMethods = new ArrayList<>();
     private final List<Runnable> exitMethods = new ArrayList<>();
-    private final ScopeHandle handle = new ScopeHandle();
+    private final Handle<Scope> handle = Handle.scope();
     private boolean done;
 
     ScopeBuilder(@Nullable Scope parent) {
         super(parent, new HashMap<>(), new ArrayList<>(), new HashMap<>(), new HashMap<>());
         // not an instance, so list() never finds it
-        this.byIdentity.put(ScopeHandle.IDENTITY, this.handle);
+        this.byIdentity.put(Handle.SCOPE, this.handle);
     }
 
     public <T> ScopeBuilder bind(Identity<T> identity, T value) {
@@ -60,6 +61,16 @@ public final class ScopeBuilder extends ScopeContext {
         return this;
     }
 
+    // resolves once the scope is built, so values bound later in the scope can be referred to
+    public Handle<Scope> handle() {
+        return this.handle;
+    }
+
+    public <T> Handle<T> handle(Identity<T> identity) {
+        Objects.requireNonNull(identity, "identity must not be null");
+        return this.handle.map(scope -> scope.require(identity));
+    }
+
     public ScopeBuilder enter(Runnable method) {
         Objects.requireNonNull(method, "method must not be null");
         this.ensureNotDone();
@@ -74,7 +85,7 @@ public final class ScopeBuilder extends ScopeContext {
         return this;
     }
 
-    Scope build() {
+    Scope build(List<ScopePlugin> plugins) {
         this.ensureNotDone();
         this.done = true;
         return new Scope(
@@ -85,6 +96,7 @@ public final class ScopeBuilder extends ScopeContext {
                 this.fieldsByAnnotation,
                 this.enterMethods,
                 this.exitMethods,
+                plugins,
                 this.handle);
     }
 

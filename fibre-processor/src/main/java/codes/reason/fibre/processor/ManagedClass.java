@@ -30,8 +30,9 @@ record ManagedClass(
         List<ExecutableElement> enterMethods,
         List<ExecutableElement> exitMethods,
         List<Queried> queried,
+        List<Provider> providers,
         @Nullable TypeElement options
-) {
+) implements DependencyGraph.Node {
 
     static boolean isOptions(TypeElement type) {
         Set<Modifier> modifiers = type.getModifiers();
@@ -78,14 +79,24 @@ record ManagedClass(
         return this.dependencies().filter(dependency -> !dependency.isIdentityOf(this.type)).toList();
     }
 
+    Stream<Dependency> providerDependencies() {
+        return this.providers.stream().flatMap(provider -> provider.dependencies().stream());
+    }
+
     Stream<Element> usedMembers() {
         return Stream.of(
                 Stream.<Element>ofNullable(this.constructor()),
                 this.injections.stream().map(Injection::member),
                 this.enterMethods.stream(),
                 this.exitMethods.stream(),
-                this.queried.stream().map(Queried::member)
+                this.queried.stream().map(Queried::member),
+                this.providers.stream().map(Provider::method)
         ).flatMap(stream -> stream);
+    }
+
+    @Override
+    public String describe() {
+        return this.type.getSimpleName().toString();
     }
 
     enum Kind {
@@ -112,10 +123,36 @@ record ManagedClass(
     record Queried(Element member, List<TypeElement> annotations) {
     }
 
+    record Provider(ExecutableElement method) implements DependencyGraph.Node {
+
+        List<Dependency> dependencies() {
+            return Dependency.of(this.method);
+        }
+
+        TypeMirror type() {
+            return this.method.getReturnType();
+        }
+
+        DeclaredType declaredType() {
+            return (DeclaredType) this.type();
+        }
+
+        @Nullable String name() {
+            return Annotations.name(this.type());
+        }
+
+        @Override
+        public String describe() {
+            return "%s.%s()".formatted(this.method.getEnclosingElement().getSimpleName(), this.method.getSimpleName());
+        }
+    }
+
     record Dependency(VariableElement element) {
 
         private static final String LIST = "java.util.List";
         private static final String IDENTITY = "codes.reason.fibre.identity.Identity";
+        private static final String HANDLE = "codes.reason.fibre.scope.Handle";
+        private static final String SCOPE = "codes.reason.fibre.scope.Scope";
 
         static List<Dependency> of(ExecutableElement executable) {
             return executable.getParameters().stream().map(Dependency::new).toList();
@@ -135,6 +172,33 @@ record ManagedClass(
 
         boolean isList() {
             return this.is(LIST);
+        }
+
+        boolean isHandle() {
+            return this.is(HANDLE);
+        }
+
+        boolean isScopeHandle() {
+            DeclaredType target = this.handleTarget();
+            return target != null && ((TypeElement) target.asElement()).getQualifiedName().contentEquals(SCOPE);
+        }
+
+        // what a handle resolves to, which is only built once whatever takes the handle is
+        @Nullable DeclaredType handleTarget() {
+            if (!this.isHandle()) {
+                return null;
+            }
+            List<? extends TypeMirror> arguments = this.declaredType().getTypeArguments();
+            return !arguments.isEmpty() && arguments.getFirst() instanceof DeclaredType declared ? declared : null;
+        }
+
+        // the type and name this resolves by, which for a handle is what it refers to
+        DeclaredType identityType() {
+            return this.isHandle() ? Objects.requireNonNull(this.handleTarget(), "handle target") : this.declaredType();
+        }
+
+        @Nullable String identityName() {
+            return this.isHandle() ? Annotations.name(this.identityType()) : this.name();
         }
 
         boolean isIdentityOf(TypeElement owner) {

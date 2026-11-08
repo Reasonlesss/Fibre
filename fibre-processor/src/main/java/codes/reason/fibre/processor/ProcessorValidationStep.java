@@ -18,6 +18,8 @@ import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 @NullMarked
@@ -109,6 +111,10 @@ final class ProcessorValidationStep {
         managed.enterMethods().stream().filter(method -> this.isOwnMember(managed, method)).forEach(method -> this.checkRunnable(method, "@Enter"));
         managed.exitMethods().stream().filter(method -> this.isOwnMember(managed, method)).forEach(method -> this.checkRunnable(method, "@Exit"));
 
+        List<ManagedClass.Provider> providers = managed.providers().stream().filter(provider -> this.isOwnMember(managed, provider.method())).toList();
+        providers.forEach(provider -> this.checkProvider(managed, provider));
+        this.checkDuplicateProviders(providers);
+
         managed.usedMembers().forEach(member -> this.checkAccess(managed, member));
         return this.valid;
     }
@@ -124,8 +130,60 @@ final class ProcessorValidationStep {
             this.error(element, "%s can't be used because its type has a type variable".formatted(element.getSimpleName()));
         } else if (dependency.isList() && dependency.listElement() == null) {
             this.error(element, "%s must be a List of a class or interface".formatted(element.getSimpleName()));
-        } else if (dependency.name() != null && dependency.name().isBlank()) {
+        } else if (dependency.isHandle() && dependency.handleTarget() == null) {
+            this.error(element, "%s must be a Handle of a class or interface".formatted(element.getSimpleName()));
+        } else if (dependency.isHandle() && dependency.name() != null) {
+            this.error(element, "@Named goes on what the handle refers to, e.g. Handle<@Named(\"red\") Team>");
+        } else if (dependency.isHandle() && ((TypeElement) dependency.identityType().asElement()).getQualifiedName().contentEquals("java.util.List")) {
+            this.error(element, "%s can't be a Handle of a List, since lists aren't bound by identity".formatted(element.getSimpleName()));
+        } else if (dependency.identityName() != null && dependency.identityName().isBlank()) {
             this.error(element, "@Named can't be blank");
+        }
+    }
+
+    private void checkProvider(ManagedClass managed, ManagedClass.Provider provider) {
+        ExecutableElement method = provider.method();
+        if (managed.kind() != ManagedClass.Kind.SCOPE) {
+            this.error(method, "@Provides method must be in a @Game or @Scoped class, since only the scope object can provide");
+        }
+        if (!method.getModifiers().contains(Modifier.STATIC)) {
+            this.error(method, "@Provides method must be static");
+        }
+        if (!method.getTypeParameters().isEmpty()) {
+            this.error(method, "@Provides method can't be generic");
+        }
+        if (method.getThrownTypes().stream().anyMatch(this::isChecked)) {
+            this.error(method, "@Provides method can't throw checked exceptions");
+        }
+
+        TypeMirror type = provider.type();
+        if (!(type instanceof DeclaredType declared)) {
+            this.error(method, "@Provides method must return a class or interface");
+        } else if (containsTypeVariable(type)) {
+            this.error(method, "@Provides method can't return a type with a type variable");
+        } else if (Stream.of(Annotations.MANAGED, Annotations.GAME, Annotations.SCOPED).anyMatch(qn -> Annotations.inherits((TypeElement) declared.asElement(), qn))) {
+            this.error(method, "@Provides method can't provide %s, since Fibre already creates it".formatted(declared.asElement().getSimpleName()));
+        } else if (provider.name() != null && provider.name().isBlank()) {
+            this.error(method, "@Named can't be blank");
+        }
+
+        for (ManagedClass.Dependency dependency : provider.dependencies()) {
+            if (dependency.isIdentityOf(managed.type())) {
+                this.error(dependency.element(), "%s can't be used, since a @Provides method has no identity".formatted(dependency.element().getSimpleName()));
+            } else {
+                this.checkDependency(managed, dependency);
+            }
+        }
+    }
+
+    private void checkDuplicateProviders(List<ManagedClass.Provider> providers) {
+        for (int i = 0; i < providers.size(); i++) {
+            ManagedClass.Provider provider = providers.get(i);
+            boolean duplicate = providers.subList(0, i).stream().anyMatch(other -> this.types.isSameType(other.type(), provider.type())
+                    && Objects.equals(other.name(), provider.name()));
+            if (duplicate) {
+                this.error(provider.method(), "%s is already provided by another @Provides method".formatted(provider.type()));
+            }
         }
     }
 

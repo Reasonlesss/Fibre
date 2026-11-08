@@ -23,19 +23,18 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 @NullMarked
 final class ProcessorManageGenerationStep {
 
-    static final String CREATE = "create";
-    static final String IDENTITY_FIELD = "IDENTITY";
-
     private static final ClassName MANAGES = ClassName.get("codes.reason.fibre.annotations", "Manages");
-    private static final ClassName SCOPE_BUILDER = ClassName.get("codes.reason.fibre.scope", "ScopeBuilder");
     private static final ClassName IDENTITY = ClassName.get("codes.reason.fibre.identity", "Identity");
     private static final ClassName BOUND_METHOD = ClassName.get("codes.reason.fibre.member", "BoundMethod");
     private static final ClassName BOUND_FIELD = ClassName.get("codes.reason.fibre.member", "BoundField");
@@ -57,33 +56,53 @@ final class ProcessorManageGenerationStep {
         this.names.newName("identity");
     }
 
-    static Map<ManagedClass.Dependency, String> members(ManagedClass managed) {
+    static Members members(ManagedClass managed) {
         NameAllocator names = new NameAllocator();
-        names.newName(CREATE);
-        names.newName(IDENTITY_FIELD);
-        Map<ManagedClass.Dependency, String> members = new LinkedHashMap<>();
-        for (ManagedClass.Dependency dependency : managed.suppliedDependencies()) {
+        names.newName(ProcessorHelper.CREATE);
+        names.newName(ProcessorHelper.IDENTITY_FIELD);
+        // dependencies and providers sharing an identity share its field
+        Map<IdentityKey, String> identities = new HashMap<>();
+        Map<ManagedClass.Dependency, String> dependencies = new LinkedHashMap<>();
+        Stream.concat(managed.suppliedDependencies().stream(), managed.providerDependencies()).forEach(dependency -> {
+            // a scope's own handle is taken from the builder, so has no identity
+            if (dependency.isScopeHandle()) {
+                return;
+            }
             String name = dependency.element().getSimpleName().toString();
-            members.put(dependency, names.newName(dependency.isList() ? name : constantCase(name)));
+            dependencies.put(dependency, dependency.isList()
+                    ? names.newName(name)
+                    : identities.computeIfAbsent(IdentityKey.of(dependency.identityType(), dependency.identityName()), _ -> names.newName(constantCase(name))));
+        });
+        Map<ManagedClass.Provider, String> providers = new LinkedHashMap<>();
+        for (ManagedClass.Provider provider : managed.providers()) {
+            providers.put(provider, identities.computeIfAbsent(IdentityKey.of(provider.declaredType(), provider.name()),
+                    _ -> names.newName(constantCase(provider.method().getSimpleName().toString()))));
         }
-        return members;
+        return new Members(dependencies, providers);
     }
 
     static JavaFile generate(Types types, ManagedClass managed) {
-        ClassName name = GeneratedNames.managed(managed.type());
+        ClassName name = ProcessorHelper.managedName(managed.type());
         TypeSpec.Builder type = TypeSpec.classBuilder(name)
                 .addAnnotation(AnnotationSpec.builder(MANAGES).addMember("value", "$S", managed.type().getQualifiedName()).build())
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addOriginatingElement(managed.type());
         if (!managed.isGeneric()) {
             DeclaredType self = (DeclaredType) managed.type().asType();
-            type.addField(identityField(IDENTITY_FIELD, self, identity(self, managed.name())));
+            type.addField(identityField(ProcessorHelper.IDENTITY_FIELD, self, identity(self, managed.name())));
         }
-        members(managed).forEach((dependency, member) -> {
+        Members members = members(managed);
+        Set<String> fields = new HashSet<>();
+        members.dependencies().forEach((dependency, member) -> {
             if (dependency.isList()) {
                 type.addMethod(list(member, dependency));
-            } else {
-                type.addField(identityField(member, dependency.declaredType(), identity(dependency.declaredType(), dependency.name())));
+            } else if (fields.add(member)) {
+                type.addField(identityField(member, dependency.identityType(), identity(dependency.identityType(), dependency.identityName())));
+            }
+        });
+        members.providers().forEach((provider, member) -> {
+            if (fields.add(member)) {
+                type.addField(identityField(member, provider.declaredType(), identity(provider.declaredType(), provider.name())));
             }
         });
         type.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build())
@@ -96,12 +115,12 @@ final class ProcessorManageGenerationStep {
     private MethodSpec create() {
         List<TypeVariableName> variables = this.managed.type().getTypeParameters().stream().map(TypeVariableName::get).toList();
         TypeName type = variables.isEmpty() ? this.owner : ParameterizedTypeName.get(this.owner, variables.toArray(TypeName[]::new));
-        MethodSpec.Builder create = MethodSpec.methodBuilder(CREATE)
+        MethodSpec.Builder create = MethodSpec.methodBuilder(ProcessorHelper.CREATE)
                 .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember("value", "$S", "unchecked").build())
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addTypeVariables(variables)
                 .returns(type)
-                .addParameter(SCOPE_BUILDER, "builder")
+                .addParameter(ProcessorHelper.SCOPE_BUILDER, "builder")
                 .addParameter(ParameterizedTypeName.get(IDENTITY, type), "identity");
         for (ManagedClass.Dependency dependency : this.managed.suppliedDependencies()) {
             String parameter = this.names.newName(dependency.element().getSimpleName().toString());
@@ -109,7 +128,7 @@ final class ProcessorManageGenerationStep {
             create.addParameter(TypeName.get(dependency.type()), parameter);
         }
 
-        String instance = this.names.newName(decapitalize(this.owner.simpleName()));
+        String instance = this.names.newName(ProcessorHelper.decapitalize(this.owner.simpleName()));
         create.addStatement(variables.isEmpty() ? "$T $N = new $T($L)" : "$T $N = new $T<>($L)",
                 type, instance, this.owner, this.arguments(this.managed.constructorDependencies()));
         if (this.managed.kind() == ManagedClass.Kind.MANAGED_MANY) {
@@ -170,7 +189,7 @@ final class ProcessorManageGenerationStep {
         MethodSpec.Builder list = MethodSpec.methodBuilder(name)
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .returns(TypeName.get(dependency.type()))
-                .addParameter(SCOPE_BUILDER, "builder");
+                .addParameter(ProcessorHelper.SCOPE_BUILDER, "builder");
         if (element.getTypeArguments().isEmpty()) {
             return list.addStatement("return builder.list($T.class)", raw).build();
         }
@@ -219,12 +238,19 @@ final class ProcessorManageGenerationStep {
         return TypeName.get(this.types.erasure(type));
     }
 
-    static String decapitalize(String name) {
-        return Character.toLowerCase(name.charAt(0)) + name.substring(1);
-    }
-
     private static String constantCase(String name) {
         return name.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase(Locale.ROOT);
+    }
+
+    // the identity field or list method of each dependency, and the identity field each provider binds to
+    private record IdentityKey(TypeName type, @Nullable String name) {
+
+        static IdentityKey of(DeclaredType type, @Nullable String name) {
+            return new IdentityKey(TypeName.get(type).withoutAnnotations(), name);
+        }
+    }
+
+    record Members(Map<ManagedClass.Dependency, String> dependencies, Map<ManagedClass.Provider, String> providers) {
     }
 
 }

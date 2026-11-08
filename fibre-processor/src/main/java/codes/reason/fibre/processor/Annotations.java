@@ -23,6 +23,7 @@ final class Annotations {
     static final String SCOPED = "codes.reason.fibre.annotations.Scoped";
     static final String GAME = "codes.reason.fibre.annotations.Game";
     static final String MANAGES = "codes.reason.fibre.annotations.Manages";
+    static final String PROVIDES = "codes.reason.fibre.annotations.Provides";
 
     private Annotations() {
     }

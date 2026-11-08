@@ -26,6 +26,7 @@ final class ProcessorCollectorStep {
         List<ExecutableElement> enterMethods = new ArrayList<>();
         List<ExecutableElement> exitMethods = new ArrayList<>();
         List<ManagedClass.Queried> queried = new ArrayList<>();
+        List<ManagedClass.Provider> providers = new ArrayList<>();
 
         for (ExecutableElement constructor : ElementFilter.constructorsIn(type.getEnclosedElements())) {
             if (constructor.getParameters().isEmpty()) {
@@ -45,6 +46,9 @@ final class ProcessorCollectorStep {
             if (enclosed instanceof ExecutableElement method && Annotations.has(method, Annotations.EXIT)) {
                 exitMethods.add(method);
             }
+            if (enclosed instanceof ExecutableElement method && Annotations.has(method, Annotations.PROVIDES)) {
+                providers.add(new ManagedClass.Provider(method));
+            }
             List<TypeElement> queryable = enclosed.getAnnotationMirrors().stream()
                     .map(Annotations::type)
                     .filter(annotation -> Annotations.has(annotation, Annotations.QUERYABLE))
@@ -63,6 +67,7 @@ final class ProcessorCollectorStep {
                 List.copyOf(enterMethods),
                 List.copyOf(exitMethods),
                 List.copyOf(queried),
+                List.copyOf(providers),
                 options(type)
         );
     }

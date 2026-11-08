@@ -9,6 +9,7 @@ import javax.lang.model.util.Elements;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 @NullMarked
 final class ProcessorLibraryCollectorStep {
@@ -19,7 +20,7 @@ final class ProcessorLibraryCollectorStep {
     static List<TypeElement> find(Elements elements, List<ManagedClass> classes, Set<TypeElement> seen) {
         List<TypeElement> libraries = new ArrayList<>();
         for (ManagedClass managed : classes) {
-            managed.dependencies()
+            Stream.concat(managed.dependencies(), managed.providerDependencies())
                     .filter(dependency -> !dependency.isList() && !dependency.isIdentityOf(managed.type()))
                     .forEach(dependency -> {
                         if (dependency.type() instanceof DeclaredType declared
@@ -36,7 +37,7 @@ final class ProcessorLibraryCollectorStep {
         if (!Annotations.inherits(type, Annotations.MANAGED)) {
             return false;
         }
-        TypeElement generated = elements.getTypeElement(GeneratedNames.managed(type).canonicalName());
+        TypeElement generated = elements.getTypeElement(ProcessorHelper.managedName(type).canonicalName());
         AnnotationMirror manages = generated != null
                 ? Annotations.find(generated, Annotations.MANAGES)
                 : null;
