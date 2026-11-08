@@ -3,6 +3,8 @@ package codes.reason.fibre.scope;
 import codes.reason.fibre.blueprint.ScopeBlueprint;
 import codes.reason.fibre.identity.Identity;
 import codes.reason.fibre.plugin.ScopePlugin;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.jspecify.annotations.NullMarked;
@@ -26,8 +28,9 @@ final class ScopeFactory {
         ScopeBuilder builder = new ScopeBuilder(parent);
         options.bindings().forEach((identity, value) -> builder.bind((Identity<Object>) identity, value));
 
+        List<ScopePlugin> plugins = plugins(parent, options.plugins());
         ScopeInject inject = new ScopeInject(builder);
-        for (ScopePlugin plugin : options.plugins()) {
+        for (ScopePlugin plugin : plugins) {
             try {
                 plugin.inject(inject);
             } catch (Throwable t) {
@@ -38,10 +41,10 @@ final class ScopeFactory {
         inject.end();
 
         blueprint.apply(builder);
-        Scope scope = builder.build();
+        Scope scope = builder.build(plugins);
 
         ScopeSetup setup = new ScopeSetup(scope);
-        for (ScopePlugin plugin : options.plugins()) {
+        for (ScopePlugin plugin : plugins) {
             try {
                 plugin.setup(setup);
             } catch (Throwable t) {
@@ -63,6 +66,17 @@ final class ScopeFactory {
             }
         }
         return scope;
+    }
+
+    // parent plugins run first, and a plugin already inherited isn't run twice
+    private static List<ScopePlugin> plugins(@Nullable Scope parent, List<ScopePlugin> own) {
+        List<ScopePlugin> result = new ArrayList<>(parent != null ? parent.plugins : List.of());
+        for (ScopePlugin plugin : own) {
+            if (result.stream().noneMatch(existing -> existing == plugin)) {
+                result.add(plugin);
+            }
+        }
+        return result;
     }
 
     private static IllegalStateException closeAfter(Scope scope, IllegalStateException exception) {

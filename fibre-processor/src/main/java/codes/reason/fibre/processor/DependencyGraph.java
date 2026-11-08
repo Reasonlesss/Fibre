@@ -31,10 +31,30 @@ final class DependencyGraph {
         }
     }
 
+    sealed interface Node permits ManagedClass, ManagedClass.Provider {
+
+        String describe();
+    }
+
+    // only a scope object has providers, so a child scope requires what its parents provide from them
+    ManagedClass.@Nullable Provider provider(ManagedClass.Dependency dependency, ManagedClass root) {
+        return root.providers().stream()
+                .filter(provider -> this.types.isSameType(provider.type(), dependency.identityType()))
+                .filter(provider -> Objects.equals(provider.name(), dependency.identityName()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    List<ManagedClass.Provider> providers(DeclaredType type, ManagedClass root) {
+        return root.providers().stream()
+                .filter(provider -> this.types.isAssignable(provider.type(), type))
+                .toList();
+    }
+
     @Nullable ManagedClass resolve(ManagedClass.Dependency dependency, ManagedClass root) {
-        DeclaredType type = dependency.declaredType();
+        DeclaredType type = dependency.identityType();
         ManagedClass managed = this.find((TypeElement) type.asElement());
-        if (managed == null || !inScope(managed, root) || !Objects.equals(managed.name(), dependency.name())) {
+        if (managed == null || !inScope(managed, root) || !Objects.equals(managed.name(), dependency.identityName())) {
             return null;
         }
         boolean parameterised = type.getTypeArguments().size() == managed.type().getTypeParameters().size()
@@ -49,13 +69,39 @@ final class DependencyGraph {
                 .toList();
     }
 
-    List<ManagedClass> dependencies(ManagedClass managed, ManagedClass root) {
-        return managed.dependencies()
-                .filter(dependency -> !dependency.isIdentityOf(managed.type()))
-                .flatMap(dependency -> dependency.isList()
-                        ? this.implementations(dependency.requireListElement(), root).stream()
-                        : Stream.<ManagedClass>ofNullable(this.resolve(dependency, root))
-                ).toList();
+    List<Node> dependencies(Node node, ManagedClass root) {
+        return dependencies(node).flatMap(dependency -> this.nodes(dependency, root)).toList();
+    }
+
+    // what the node's handles refer to, which must be built but not before the node
+    List<Node> handled(Node node, ManagedClass root) {
+        return dependencies(node)
+                .filter(dependency -> dependency.isHandle() && !dependency.isScopeHandle())
+                .flatMap(dependency -> this.target(dependency, root))
+                .toList();
+    }
+
+    private static Stream<ManagedClass.Dependency> dependencies(Node node) {
+        return switch (node) {
+            case ManagedClass managed -> managed.dependencies().filter(dependency -> !dependency.isIdentityOf(managed.type()));
+            case ManagedClass.Provider provider -> provider.dependencies().stream();
+        };
+    }
+
+    private Stream<Node> nodes(ManagedClass.Dependency dependency, ManagedClass root) {
+        if (dependency.isHandle()) {
+            return Stream.empty();
+        }
+        if (dependency.isList()) {
+            DeclaredType element = dependency.requireListElement();
+            return Stream.concat(this.providers(element, root).stream(), this.implementations(element, root).stream());
+        }
+        return this.target(dependency, root);
+    }
+
+    private Stream<Node> target(ManagedClass.Dependency dependency, ManagedClass root) {
+        ManagedClass.Provider provider = this.provider(dependency, root);
+        return provider != null ? Stream.of(provider) : Stream.ofNullable(this.resolve(dependency, root));
     }
 
     private @Nullable ManagedClass find(TypeElement type) {
