@@ -1,5 +1,6 @@
 package codes.reason.fibre.game;
 
+import codes.reason.fibre.event.GamePlayerJoinEvent;
 import codes.reason.fibre.platform.PlayerStates;
 import codes.reason.fibre.player.PlayerAdapter;
 import codes.reason.fibre.player.PlayerSnapshot;
@@ -55,14 +56,30 @@ public final class GameManager {
         return this.regions.find(position);
     }
 
-    boolean addPlayer(Game game, PlayerAdapter<?> player) {
+    JoinResult addPlayer(Game game, PlayerAdapter<?> player) {
         if (game.lifecycle().isClosed() || !this.games.containsKey(game.identity().id())) {
             throw new IllegalStateException("Can't add a player to %s as it isn't running".formatted(game));
         }
         UUID playerId = player.id();
         Game previous = this.gamesByPlayer.get(playerId);
         if (previous == game) {
-            return false;
+            return new JoinResult.AlreadyIn();
+        }
+        // asked before anything changes, so a denial leaves the player exactly where they were
+        GamePlayerJoinEvent join = new GamePlayerJoinEvent(player);
+        if (!game.events().call(join) && !join.denied()) {
+            join.deny("Something went wrong while joining");
+        }
+        if (join.denied()) {
+            return new JoinResult.Denied(join.denial().orElseThrow());
+        }
+        if (game.lifecycle().isClosed()) {
+            return new JoinResult.Denied("The game closed");
+        }
+        // a join listener may have moved the player
+        previous = this.gamesByPlayer.get(playerId);
+        if (previous == game) {
+            return new JoinResult.AlreadyIn();
         }
         if (previous == null && !this.outside.containsKey(playerId)) {
             this.outside.put(playerId, this.states.capture(player));
@@ -73,13 +90,13 @@ public final class GameManager {
             this.leave(previous, playerId);
             // a remove listener moved the player somewhere else, and that move wins
             if (this.gamesByPlayer.get(playerId) != game) {
-                return false;
+                return new JoinResult.Redirected();
             }
         }
         // before the add events, so listeners see the player as this game left them, or fresh
         game.snapshots().apply(player);
         game.players().add(player);
-        return true;
+        return new JoinResult.Joined();
     }
 
     boolean removePlayer(Game game, UUID playerId) {

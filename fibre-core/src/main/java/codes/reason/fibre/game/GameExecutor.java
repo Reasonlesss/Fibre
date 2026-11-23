@@ -14,12 +14,15 @@ public final class GameExecutor {
         this.logger = logger;
     }
 
-    public void execute(Task task) {
+    // false if the task threw, which is logged
+    public boolean execute(Task task) {
         Objects.requireNonNull(task, "task must not be null");
         try {
             task.run();
+            return true;
         } catch (Throwable t) {
             this.logger.log(Level.SEVERE, "An exception was thrown while executing a game task", t);
+            return false;
         }
     }
 

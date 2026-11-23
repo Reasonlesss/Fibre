@@ -24,13 +24,20 @@ public final class BukkitPlatform implements FibrePlatform {
     private final BukkitEvents events;
     private final BukkitTasks scheduler;
     private final PlayerStates playerStates;
+    private final boolean audiences;
 
-    public BukkitPlatform(JavaPlugin plugin, EventLookup lookup, PlayerStates playerStates, ToIntFunction<World> minHeight) {
+    public BukkitPlatform(JavaPlugin plugin, EventLookup lookup, PlayerStates playerStates, ToIntFunction<World> minHeight, boolean audiences) {
         this.plugin = plugin;
+        this.audiences = audiences;
         this.playerStates = playerStates;
         this.adapters = new BukkitAdapters(minHeight);
         this.events = new BukkitEvents(plugin, lookup, this.adapters);
         this.scheduler = new BukkitTasks(plugin);
+    }
+
+    // whether players are Adventure audiences, so AudiencePlugin can be installed
+    public boolean audiences() {
+        return this.audiences;
     }
 
     @Override

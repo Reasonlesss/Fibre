@@ -12,9 +12,7 @@ dependencyResolutionManagement {
 
 include(
     "fibre-processor",
-    "fibre-api",
     "fibre-core",
-    "fibre-plugin",
     "fibre-bukkit",
     "fibre-bukkit-legacy",
     "fibre-bukkit-paper"

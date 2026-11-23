@@ -36,8 +36,9 @@ public final class EventPlugin implements ScopePlugin {
                 setup.closeable(gameEvents.register(type.asSubclass(GameEvent.class), order,
                         event -> {
                             PlayerAdapter<?> player = event instanceof GamePlayerEvent playerEvent ? playerEvent.player() : null;
+                            // not caught here, so GameEvents sees the failure
                             if (FilterPlugin.allows(scope, event, player, player != null ? player.get() : null)) {
-                                executor.execute(() -> method.invoke(event));
+                                method.invoke(event);
                             }
                         }));
                 continue;

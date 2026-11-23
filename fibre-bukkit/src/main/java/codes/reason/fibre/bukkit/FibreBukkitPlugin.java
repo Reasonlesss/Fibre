@@ -2,15 +2,10 @@ package codes.reason.fibre.bukkit;
 
 import codes.reason.fibre.FibreHolder;
 import codes.reason.fibre.builtin.audience.AudiencePlugin;
-import codes.reason.fibre.builtin.event.EventPlugin;
-import codes.reason.fibre.builtin.filter.FilterPlugin;
-import codes.reason.fibre.builtin.tick.TickPlugin;
 import codes.reason.fibre.game.Game;
 import codes.reason.fibre.game.GameManager;
-import codes.reason.fibre.platform.FibrePlatform;
 import codes.reason.fibre.plugin.PluginManager;
 import java.util.logging.Level;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -22,15 +17,12 @@ public final class FibreBukkitPlugin extends JavaPlugin {
 
     @Override
     public void onLoad() {
-        FibrePlatform platform = this.platform(isPaper()
+        BukkitPlatform platform = this.platform(isPaper()
                 ? "codes.reason.fibre.bukkit.paper.PaperPlatform"
                 : "codes.reason.fibre.bukkit.legacy.LegacyPlatform");
 
         PluginManager plugins = new PluginManager();
-        plugins.install(new TickPlugin());
-        plugins.install(new FilterPlugin());
-        plugins.install(new EventPlugin());
-        if (hasAdventure()) {
+        if (platform.audiences()) {
             installAudience(plugins);
         }
 
@@ -74,20 +66,11 @@ public final class FibreBukkitPlugin extends JavaPlugin {
     }
 
     // looked up by name, since the platform modules are built on this one
-    private FibrePlatform platform(String factory) {
+    private BukkitPlatform platform(String factory) {
         try {
-            return (FibrePlatform) Class.forName(factory).getMethod("create", JavaPlugin.class).invoke(null, this);
+            return (BukkitPlatform) Class.forName(factory).getMethod("create", JavaPlugin.class).invoke(null, this);
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Couldn't create the platform from %s".formatted(factory), exception);
-        }
-    }
-
-    // players are only audiences on servers that ship Adventure, e.g. Paper or some 1.8 forks
-    private static boolean hasAdventure() {
-        try {
-            return Class.forName("net.kyori.adventure.audience.Audience").isAssignableFrom(Player.class);
-        } catch (ClassNotFoundException exception) {
-            return false;
         }
     }
 

@@ -11,7 +11,7 @@ public final class PaperPlatform {
     private PaperPlatform() {}
 
     public static BukkitPlatform create(JavaPlugin plugin) {
-        return new BukkitPlatform(plugin, new PaperEventLookup(), new PaperPlayerStates(), World::getMinHeight);
+        return new BukkitPlatform(plugin, new PaperEventLookup(), new PaperPlayerStates(), World::getMinHeight, true);
     }
 
 }

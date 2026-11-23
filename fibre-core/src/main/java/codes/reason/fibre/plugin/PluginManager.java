@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import codes.reason.fibre.builtin.audience.AudiencePlugin;
+import codes.reason.fibre.builtin.filter.FilterPlugin;
 import codes.reason.fibre.builtin.event.EventPlugin;
 import codes.reason.fibre.builtin.tick.TickPlugin;
 import org.jspecify.annotations.NullMarked;
@@ -15,8 +15,8 @@ public final class PluginManager {
     private final List<ScopePlugin> plugins = new ArrayList<>();
 
     public PluginManager() {
-        // built-in plugins
-        this.install(new AudiencePlugin());
+        // built-in plugins; AudiencePlugin needs Adventure, so the platform installs it
+        this.install(new FilterPlugin());
         this.install(new EventPlugin());
         this.install(new TickPlugin());
     }

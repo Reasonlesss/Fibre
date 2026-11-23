@@ -65,7 +65,7 @@ public final class Game {
         return this.regions;
     }
 
-    public boolean addPlayer(PlayerAdapter<?> player) {
+    public JoinResult addPlayer(PlayerAdapter<?> player) {
         Objects.requireNonNull(player, "player must not be null");
         return this.manager.addPlayer(this, player);
     }
