@@ -1,8 +1,8 @@
 package codes.reason.fibre.scope;
 
-import codes.reason.fibre.identity.Identity;
-import codes.reason.fibre.member.BoundField;
-import codes.reason.fibre.member.BoundMethod;
+import codes.reason.fibre.scope.identity.Identity;
+import codes.reason.fibre.scope.member.BoundField;
+import codes.reason.fibre.scope.member.BoundMethod;
 import codes.reason.fibre.plugin.Attachment;
 import codes.reason.fibre.plugin.ScopePlugin;
 import java.lang.annotation.Annotation;
@@ -17,16 +17,15 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
 @NullMarked
-public final class Scope extends ScopeContext implements AutoCloseable {
+public final class Scope extends ScopeContext {
 
     final List<AutoCloseable> closeables = new ArrayList<>();
     final Map<Attachment<?>, Object> attachments = new HashMap<>();
     private final List<Scope> children = new ArrayList<>();
-    final List<Runnable> enterMethods;
+    final List<ScopeLifecycle> lifecycles;
     final List<ScopePlugin> plugins;
     final Handle<Scope> handle;
-    boolean entered;
-    private final List<Runnable> exitMethods;
+    int entered;
     private boolean closed;
 
     Scope(
@@ -35,8 +34,7 @@ public final class Scope extends ScopeContext implements AutoCloseable {
             List<Object> instances,
             Map<Class<? extends Annotation>, List<BoundMethod>> methodsByAnnotation,
             Map<Class<? extends Annotation>, List<BoundField>> fieldsByAnnotation,
-            List<Runnable> enterMethods,
-            List<Runnable> exitMethods,
+            List<ScopeLifecycle> lifecycles,
             List<ScopePlugin> plugins,
             Handle<Scope> handle) {
         super(
@@ -45,8 +43,7 @@ public final class Scope extends ScopeContext implements AutoCloseable {
                 List.copyOf(instances),
                 ScopeHelper.copyLists(methodsByAnnotation),
                 ScopeHelper.copyLists(fieldsByAnnotation));
-        this.enterMethods = List.copyOf(enterMethods);
-        this.exitMethods = new ArrayList<>(exitMethods);
+        this.lifecycles = List.copyOf(lifecycles);
         this.plugins = List.copyOf(plugins);
         this.handle = handle;
         if (parent != null) {
@@ -90,7 +87,6 @@ public final class Scope extends ScopeContext implements AutoCloseable {
         return this.closed;
     }
 
-    @Override
     public void close() {
         if (this.closed) {
             return;
@@ -105,9 +101,9 @@ public final class Scope extends ScopeContext implements AutoCloseable {
                 failures.add(e);
             }
         }
-        // a scope whose plugins failed was never entered, so it has nothing to exit
-        if (this.entered) {
-            for (Runnable method : this.exitMethods.reversed()) {
+        // only lifecycles that started entering are exited, in reverse, so a scope whose plugins failed exits nothing
+        for (ScopeLifecycle lifecycle : this.lifecycles.subList(0, this.entered).reversed()) {
+            for (Runnable method : lifecycle.exit().reversed()) {
                 try {
                     method.run();
                 } catch (Throwable t) {
@@ -115,6 +111,7 @@ public final class Scope extends ScopeContext implements AutoCloseable {
                 }
             }
         }
+        this.entered = 0;
         for (AutoCloseable closeable : this.closeables.reversed()) {
             try {
                 closeable.close();
@@ -124,7 +121,6 @@ public final class Scope extends ScopeContext implements AutoCloseable {
         }
 
         this.children.clear();
-        this.exitMethods.clear();
         this.closeables.clear();
         if (this.parent != null) {
             this.parent.children.remove(this);

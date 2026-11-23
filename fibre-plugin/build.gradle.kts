@@ -7,8 +7,6 @@ plugins {
 
 dependencies {
     api(project(":fibre-api"))
-    runtimeOnly(project(":fibre-plugin-legacy"))
-    runtimeOnly(project(":fibre-plugin-modern"))
     compileOnly("org.jspecify:jspecify:1.0.0")
     compileOnly("net.kyori:adventure-api:5.2.0")
     compileOnly("org.spigotmc:spigot-api:1.8.8-R0.1-SNAPSHOT")
@@ -28,8 +26,6 @@ tasks.shadowJar {
     mergeServiceFiles()
     dependencies {
         include(project(":fibre-api"))
-        include(project(":fibre-plugin-legacy"))
-        include(project(":fibre-plugin-modern"))
     }
 }
 

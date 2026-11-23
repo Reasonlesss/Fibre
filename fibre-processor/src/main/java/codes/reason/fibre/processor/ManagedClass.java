@@ -150,7 +150,7 @@ record ManagedClass(
     record Dependency(VariableElement element) {
 
         private static final String LIST = "java.util.List";
-        private static final String IDENTITY = "codes.reason.fibre.identity.Identity";
+        private static final String IDENTITY = "codes.reason.fibre.scope.identity.Identity";
         private static final String HANDLE = "codes.reason.fibre.scope.Handle";
         private static final String SCOPE = "codes.reason.fibre.scope.Scope";
 

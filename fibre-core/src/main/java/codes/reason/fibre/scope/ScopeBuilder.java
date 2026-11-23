@@ -1,8 +1,10 @@
 package codes.reason.fibre.scope;
 
-import codes.reason.fibre.identity.Identity;
-import codes.reason.fibre.member.BoundField;
-import codes.reason.fibre.member.BoundMethod;
+import codes.reason.fibre.scope.annotations.QueryableField;
+import codes.reason.fibre.scope.annotations.QueryableMethod;
+import codes.reason.fibre.scope.identity.Identity;
+import codes.reason.fibre.scope.member.BoundField;
+import codes.reason.fibre.scope.member.BoundMethod;
 import codes.reason.fibre.plugin.ScopePlugin;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -15,13 +17,13 @@ import org.jspecify.annotations.Nullable;
 @NullMarked
 public final class ScopeBuilder extends ScopeContext {
 
-    private final List<Runnable> enterMethods = new ArrayList<>();
-    private final List<Runnable> exitMethods = new ArrayList<>();
-    private final Handle<Scope> handle = Handle.scope();
+    private final List<ScopeLifecycle> lifecycles = new ArrayList<>();
+    private final Handle<Scope> handle;
     private boolean done;
 
-    ScopeBuilder(@Nullable Scope parent) {
+    ScopeBuilder(@Nullable Scope parent, Handle<Scope> handle) {
         super(parent, new HashMap<>(), new ArrayList<>(), new HashMap<>(), new HashMap<>());
+        this.handle = handle;
         // not an instance, so list() never finds it
         this.byIdentity.put(Handle.SCOPE, this.handle);
     }
@@ -49,7 +51,7 @@ public final class ScopeBuilder extends ScopeContext {
     public final ScopeBuilder method(BoundMethod method, Class<? extends Annotation>... annotations) {
         Objects.requireNonNull(method, "method must not be null");
         this.ensureNotDone();
-        ScopeHelper.add(this.methodsByAnnotation, method, annotations);
+        ScopeHelper.add(this.methodsByAnnotation, method, QueryableMethod.class, annotations);
         return this;
     }
 
@@ -57,7 +59,7 @@ public final class ScopeBuilder extends ScopeContext {
     public final ScopeBuilder field(BoundField field, Class<? extends Annotation>... annotations) {
         Objects.requireNonNull(field, "field must not be null");
         this.ensureNotDone();
-        ScopeHelper.add(this.fieldsByAnnotation, field, annotations);
+        ScopeHelper.add(this.fieldsByAnnotation, field, QueryableField.class, annotations);
         return this;
     }
 
@@ -71,17 +73,11 @@ public final class ScopeBuilder extends ScopeContext {
         return this.handle.map(scope -> scope.require(identity));
     }
 
-    public ScopeBuilder enter(Runnable method) {
-        Objects.requireNonNull(method, "method must not be null");
+    public ScopeBuilder lifecycle(List<Runnable> enter, List<Runnable> exit) {
+        Objects.requireNonNull(enter, "enter must not be null");
+        Objects.requireNonNull(exit, "exit must not be null");
         this.ensureNotDone();
-        this.enterMethods.add(method);
-        return this;
-    }
-
-    public ScopeBuilder exit(Runnable method) {
-        Objects.requireNonNull(method, "method must not be null");
-        this.ensureNotDone();
-        this.exitMethods.add(method);
+        this.lifecycles.add(new ScopeLifecycle(enter, exit));
         return this;
     }
 
@@ -94,8 +90,7 @@ public final class ScopeBuilder extends ScopeContext {
                 this.instances,
                 this.methodsByAnnotation,
                 this.fieldsByAnnotation,
-                this.enterMethods,
-                this.exitMethods,
+                this.lifecycles,
                 plugins,
                 this.handle);
     }

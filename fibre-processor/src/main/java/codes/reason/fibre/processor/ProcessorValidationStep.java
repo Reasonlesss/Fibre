@@ -4,6 +4,8 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
 import javax.annotation.processing.Messager;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -12,14 +14,19 @@ import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @NullMarked
@@ -107,6 +114,13 @@ final class ProcessorValidationStep {
         if (options != null) {
             managed.dependencies().forEach(dependency -> this.checkOption(managed, options, dependency));
         }
+
+        for (ManagedClass.Queried queried : managed.queried()) {
+            if (this.isOwnMember(managed, queried.member())) {
+                queried.annotations().forEach(annotation -> this.checkQueried(queried.member(), annotation));
+            }
+        }
+        this.checkUnique(managed);
 
         managed.enterMethods().stream().filter(method -> this.isOwnMember(managed, method)).forEach(method -> this.checkRunnable(method, "@Enter"));
         managed.exitMethods().stream().filter(method -> this.isOwnMember(managed, method)).forEach(method -> this.checkRunnable(method, "@Exit"));
@@ -212,6 +226,101 @@ final class ProcessorValidationStep {
         } else if (!declaring.getModifiers().contains(Modifier.PUBLIC)) {
             this.error(member, "%s must be public, since %s inherits from it in another package".formatted(declaring.getSimpleName(), managed.type().getSimpleName()));
         }
+    }
+
+    private void checkQueried(Element member, TypeElement annotation) {
+        String kind = member instanceof ExecutableElement ? Annotations.QUERYABLE_METHOD : Annotations.QUERYABLE_FIELD;
+        AnnotationMirror queryable = Annotations.find(annotation, kind);
+        if (queryable == null) {
+            this.error(member, "@%s can't be used on a %s".formatted(annotation.getSimpleName(), member instanceof ExecutableElement ? "method" : "field"));
+            return;
+        }
+        if (member.getModifiers().contains(Modifier.STATIC)) {
+            this.error(member, "@%s %s can't be static".formatted(annotation.getSimpleName(), member instanceof ExecutableElement ? "method" : "field"));
+        }
+        if (!(member instanceof ExecutableElement) && member.getModifiers().contains(Modifier.FINAL)
+                && Boolean.TRUE.equals(Annotations.valueWithDefaults(this.elements, queryable, "mutable"))) {
+            this.error(member, "@%s field can't be final".formatted(annotation.getSimpleName()));
+        }
+        List<? extends AnnotationValue> allowed = this.values(queryable, "value");
+        if (allowed.isEmpty()) {
+            return;
+        }
+        if (member instanceof ExecutableElement method) {
+            List<AnnotationMirror> signatures = allowed.stream().map(value -> (AnnotationMirror) value.getValue()).toList();
+            if (signatures.stream().noneMatch(signature -> this.matches(method, signature))) {
+                this.error(method, "@%s method must look like %s".formatted(annotation.getSimpleName(),
+                        signatures.stream().map(this::describe).collect(Collectors.joining(" or "))));
+            }
+        } else {
+            List<TypeMirror> types = allowed.stream().map(value -> (TypeMirror) value.getValue()).toList();
+            if (types.stream().noneMatch(type -> this.isSubtype(member.asType(), type))) {
+                this.error(member, "@%s field must be %s".formatted(annotation.getSimpleName(),
+                        types.stream().map(ProcessorValidationStep::simpleName).collect(Collectors.joining(" or "))));
+            }
+        }
+    }
+
+    private void checkUnique(ManagedClass managed) {
+        Map<TypeElement, List<Element>> byAnnotation = new LinkedHashMap<>();
+        for (ManagedClass.Queried queried : managed.queried()) {
+            queried.annotations().forEach(annotation -> byAnnotation.computeIfAbsent(annotation, _ -> new ArrayList<>()).add(queried.member()));
+        }
+        byAnnotation.forEach((annotation, members) -> {
+            AnnotationMirror queryable = Stream.of(Annotations.QUERYABLE_METHOD, Annotations.QUERYABLE_FIELD)
+                    .map(kind -> Annotations.find(annotation, kind))
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElseThrow();
+            if (members.size() > 1 && Boolean.TRUE.equals(Annotations.valueWithDefaults(this.elements, queryable, "unique"))) {
+                members.stream().filter(member -> this.isOwnMember(managed, member)).forEach(member ->
+                        this.error(member, "%s can only have one @%s".formatted(managed.type().getSimpleName(), annotation.getSimpleName())));
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<? extends AnnotationValue> values(AnnotationMirror annotation, String name) {
+        return (List<? extends AnnotationValue>) Annotations.valueWithDefaults(this.elements, annotation, name);
+    }
+
+    private boolean matches(ExecutableElement method, AnnotationMirror signature) {
+        List<TypeMirror> parameters = this.parameters(signature);
+        TypeMirror returns = this.returns(signature);
+        if (method.getParameters().size() != parameters.size()) {
+            return false;
+        }
+        for (int i = 0; i < parameters.size(); i++) {
+            if (!this.isSubtype(method.getParameters().get(i).asType(), parameters.get(i))) {
+                return false;
+            }
+        }
+        return returns.getKind() == TypeKind.VOID
+                ? method.getReturnType().getKind() == TypeKind.VOID
+                : this.isSubtype(method.getReturnType(), returns);
+    }
+
+    private boolean isSubtype(TypeMirror actual, TypeMirror expected) {
+        return actual.getKind() != TypeKind.VOID && this.types.isAssignable(this.types.erasure(actual), this.types.erasure(expected));
+    }
+
+    private List<TypeMirror> parameters(AnnotationMirror signature) {
+        return this.values(signature, "parameters").stream()
+                .map(value -> (TypeMirror) value.getValue())
+                .toList();
+    }
+
+    private TypeMirror returns(AnnotationMirror signature) {
+        return (TypeMirror) Annotations.valueWithDefaults(this.elements, signature, "returns");
+    }
+
+    private String describe(AnnotationMirror signature) {
+        String parameters = this.parameters(signature).stream().map(ProcessorValidationStep::simpleName).collect(Collectors.joining(", "));
+        return "%s (%s)".formatted(simpleName(this.returns(signature)), parameters);
+    }
+
+    private static String simpleName(TypeMirror type) {
+        return type instanceof DeclaredType declared ? declared.asElement().getSimpleName().toString() : type.toString();
     }
 
     private void checkRunnable(ExecutableElement method, String annotation) {

@@ -51,7 +51,7 @@ final class ProcessorCollectorStep {
             }
             List<TypeElement> queryable = enclosed.getAnnotationMirrors().stream()
                     .map(Annotations::type)
-                    .filter(annotation -> Annotations.has(annotation, Annotations.QUERYABLE))
+                    .filter(annotation -> Annotations.has(annotation, Annotations.QUERYABLE_METHOD) || Annotations.has(annotation, Annotations.QUERYABLE_FIELD))
                     .toList();
             if (!queryable.isEmpty()) {
                 queried.add(new ManagedClass.Queried(enclosed, queryable));

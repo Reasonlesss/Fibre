@@ -22,7 +22,7 @@ import java.util.Set;
 @NullMarked
 final class ProcessorScopeGenerationStep {
 
-    private static final ClassName SCOPE_BLUEPRINT = ClassName.get("codes.reason.fibre.blueprint", "ScopeBlueprint");
+    private static final ClassName SCOPE_BLUEPRINT = ClassName.get("codes.reason.fibre.scope.blueprint", "ScopeBlueprint");
 
     private final DependencyGraph graph;
     private final ManagedClass root;

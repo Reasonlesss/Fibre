@@ -1,7 +1,8 @@
 package codes.reason.fibre.scope;
 
-import codes.reason.fibre.blueprint.ScopeBlueprint;
-import codes.reason.fibre.identity.Identity;
+import codes.reason.fibre.Fibre;
+import codes.reason.fibre.scope.blueprint.ScopeBlueprint;
+import codes.reason.fibre.scope.identity.Identity;
 import codes.reason.fibre.plugin.ScopePlugin;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,14 +26,16 @@ final class ScopeFactory {
         configure.accept(options);
         options.end();
 
-        ScopeBuilder builder = new ScopeBuilder(parent);
+        ScopeBuilder builder = new ScopeBuilder(parent, options.handle());
         options.bindings().forEach((identity, value) -> builder.bind((Identity<Object>) identity, value));
 
         List<ScopePlugin> plugins = plugins(parent, options.plugins());
+        // only looked up when there are plugins, so a scope without any doesn't need Fibre running
+        @Nullable Fibre fibre = plugins.isEmpty() ? null : Fibre.get();
         ScopeInject inject = new ScopeInject(builder);
         for (ScopePlugin plugin : plugins) {
             try {
-                plugin.inject(inject);
+                plugin.inject(Objects.requireNonNull(fibre), inject);
             } catch (Throwable t) {
                 inject.end();
                 throw new IllegalStateException("Failed to inject plugin %s".formatted(plugin), t);
@@ -46,7 +49,7 @@ final class ScopeFactory {
         ScopeSetup setup = new ScopeSetup(scope);
         for (ScopePlugin plugin : plugins) {
             try {
-                plugin.setup(setup);
+                plugin.setup(Objects.requireNonNull(fibre), setup);
             } catch (Throwable t) {
                 setup.end();
                 // the scope is never entered, so this only closes what the earlier plugins attached
@@ -57,12 +60,23 @@ final class ScopeFactory {
 
         // before entering, so @Enter methods can already use it
         scope.handle.set(scope);
-        scope.entered = true;
-        for (Runnable method : scope.enterMethods) {
-            try {
-                method.run();
-            } catch (Throwable t) {
-                throw closeAfter(scope, new IllegalStateException("Failed to enter scope", t));
+        // a lifecycle counts as entered as soon as it starts, so its exits run even if one of its enters fails or
+        // closes the scope; once the scope is closed, nothing further is entered
+        entering:
+        for (ScopeLifecycle lifecycle : scope.lifecycles) {
+            if (scope.isClosed()) {
+                break;
+            }
+            scope.entered++;
+            for (Runnable method : lifecycle.enter()) {
+                try {
+                    method.run();
+                } catch (Throwable t) {
+                    throw closeAfter(scope, new IllegalStateException("Failed to enter scope", t));
+                }
+                if (scope.isClosed()) {
+                    break entering;
+                }
             }
         }
         return scope;

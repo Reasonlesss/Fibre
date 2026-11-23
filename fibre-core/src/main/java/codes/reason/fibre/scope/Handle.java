@@ -1,7 +1,7 @@
 package codes.reason.fibre.scope;
 
-import codes.reason.fibre.identity.Identity;
-import codes.reason.fibre.identity.TokenIdentity;
+import codes.reason.fibre.scope.identity.Identity;
+import codes.reason.fibre.scope.identity.TokenIdentity;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;

@@ -6,6 +6,7 @@ plugins {
 dependencies {
     compileOnlyApi("org.jspecify:jspecify:1.0.0")
     compileOnlyApi(project(":fibre-api"))
+    compileOnlyApi("net.kyori:adventure-api:5.2.0")
 
     annotationProcessor(project(":fibre-processor"))
 }

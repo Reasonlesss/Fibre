@@ -1,8 +1,11 @@
 package codes.reason.fibre.scope;
 
-import codes.reason.fibre.identity.Identity;
-import codes.reason.fibre.member.BoundField;
-import codes.reason.fibre.member.BoundMethod;
+import codes.reason.fibre.scope.annotations.QueryableField;
+import codes.reason.fibre.scope.annotations.QueryableMethod;
+import codes.reason.fibre.scope.identity.ClassIdentity;
+import codes.reason.fibre.scope.identity.Identity;
+import codes.reason.fibre.scope.member.BoundField;
+import codes.reason.fibre.scope.member.BoundMethod;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,10 +47,32 @@ abstract sealed class ScopeContext permits Scope, ScopeBuilder, ScopeSetup {
         return this.parent != null ? this.parent.get(identity) : Optional.empty();
     }
 
+    public final <T> Optional<T> get(Class<T> type) {
+        Objects.requireNonNull(type, "type must not be null");
+        return this.get(new ClassIdentity<>(type));
+    }
+
+    public final <T> Optional<T> get(String name, Class<T> type) {
+        Objects.requireNonNull(name, "name must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        return this.get(new ClassIdentity<>(name, type));
+    }
+
     public final <T> T require(Identity<T> identity) {
         return this.get(identity)
                 .orElseThrow(() -> new IllegalStateException(
                         "No value found for %s in this scope or in parents".formatted(identity)));
+    }
+
+    public final <T> T require(Class<T> type) {
+        Objects.requireNonNull(type, "type must not be null");
+        return this.require(new ClassIdentity<>(type));
+    }
+
+    public final <T> T require(String name, Class<T> type) {
+        Objects.requireNonNull(name, "name must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        return this.require(new ClassIdentity<>(name, type));
     }
 
     public final <T> List<T> list(Class<T> type) {
@@ -75,7 +100,7 @@ abstract sealed class ScopeContext permits Scope, ScopeBuilder, ScopeSetup {
     }
 
     public final List<BoundMethod> methods(Class<? extends Annotation> annotation) {
-        ScopeHelper.queryable(annotation);
+        ScopeHelper.queryable(annotation, QueryableMethod.class);
         List<BoundMethod> result = new ArrayList<>();
         for (ScopeContext context = this; context != null; context = context.parent) {
             result.addAll(context.methodsByAnnotation.getOrDefault(annotation, List.of()));
@@ -84,12 +109,12 @@ abstract sealed class ScopeContext permits Scope, ScopeBuilder, ScopeSetup {
     }
 
     public final List<BoundMethod> localMethods(Class<? extends Annotation> annotation) {
-        ScopeHelper.queryable(annotation);
+        ScopeHelper.queryable(annotation, QueryableMethod.class);
         return List.copyOf(this.methodsByAnnotation.getOrDefault(annotation, List.of()));
     }
 
     public final List<BoundField> fields(Class<? extends Annotation> annotation) {
-        ScopeHelper.queryable(annotation);
+        ScopeHelper.queryable(annotation, QueryableField.class);
         List<BoundField> result = new ArrayList<>();
         for (ScopeContext context = this; context != null; context = context.parent) {
             result.addAll(context.fieldsByAnnotation.getOrDefault(annotation, List.of()));
@@ -98,7 +123,7 @@ abstract sealed class ScopeContext permits Scope, ScopeBuilder, ScopeSetup {
     }
 
     public final List<BoundField> localFields(Class<? extends Annotation> annotation) {
-        ScopeHelper.queryable(annotation);
+        ScopeHelper.queryable(annotation, QueryableField.class);
         return List.copyOf(this.fieldsByAnnotation.getOrDefault(annotation, List.of()));
     }
 }

@@ -1,6 +1,5 @@
 package codes.reason.fibre.scope;
 
-import codes.reason.fibre.annotations.Queryable;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,11 +13,11 @@ final class ScopeHelper {
 
     private ScopeHelper() {}
 
-    static <A extends Annotation> Class<A> queryable(Class<A> annotation) {
+    static <A extends Annotation> Class<A> queryable(Class<A> annotation, Class<? extends Annotation> kind) {
         Objects.requireNonNull(annotation, "annotation must not be null");
-        if (!annotation.isAnnotationPresent(Queryable.class)) {
+        if (!annotation.isAnnotationPresent(kind)) {
             throw new IllegalArgumentException(
-                    "@%s is not @%s".formatted(annotation.getSimpleName(), Queryable.class.getSimpleName()));
+                    "@%s is not @%s".formatted(annotation.getSimpleName(), kind.getSimpleName()));
         }
         return annotation;
     }
@@ -26,13 +25,14 @@ final class ScopeHelper {
     static <V> void add(
             Map<Class<? extends Annotation>, List<V>> byAnnotation,
             V value,
+            Class<? extends Annotation> kind,
             Class<? extends Annotation>[] annotations) {
         Objects.requireNonNull(annotations, "annotations must not be null");
         if (annotations.length == 0) {
             throw new IllegalArgumentException("%s must be grouped under at least one annotation".formatted(value));
         }
         for (Class<? extends Annotation> annotation : annotations) {
-            queryable(annotation);
+            queryable(annotation, kind);
         }
         for (Class<? extends Annotation> annotation : annotations) {
             List<V> values = byAnnotation.computeIfAbsent(annotation, _ -> new ArrayList<>());

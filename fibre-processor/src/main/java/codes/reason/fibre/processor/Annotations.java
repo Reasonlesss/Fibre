@@ -9,21 +9,23 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.util.Elements;
 import java.util.Map;
 
 @NullMarked
 final class Annotations {
 
-    static final String NAMED = "codes.reason.fibre.annotations.Named";
-    static final String QUERYABLE = "codes.reason.fibre.annotations.Queryable";
-    static final String USE = "codes.reason.fibre.annotations.Use";
-    static final String ENTER = "codes.reason.fibre.annotations.Enter";
-    static final String EXIT = "codes.reason.fibre.annotations.Exit";
-    static final String MANAGED = "codes.reason.fibre.annotations.Managed";
-    static final String SCOPED = "codes.reason.fibre.annotations.Scoped";
-    static final String GAME = "codes.reason.fibre.annotations.Game";
-    static final String MANAGES = "codes.reason.fibre.annotations.Manages";
-    static final String PROVIDES = "codes.reason.fibre.annotations.Provides";
+    static final String NAMED = "codes.reason.fibre.scope.annotations.Named";
+    static final String QUERYABLE_METHOD = "codes.reason.fibre.scope.annotations.QueryableMethod";
+    static final String QUERYABLE_FIELD = "codes.reason.fibre.scope.annotations.QueryableField";
+    static final String USE = "codes.reason.fibre.scope.annotations.Use";
+    static final String ENTER = "codes.reason.fibre.scope.annotations.Enter";
+    static final String EXIT = "codes.reason.fibre.scope.annotations.Exit";
+    static final String MANAGED = "codes.reason.fibre.scope.annotations.Managed";
+    static final String SCOPED = "codes.reason.fibre.scope.annotations.Scoped";
+    static final String GAME = "codes.reason.fibre.scope.annotations.Game";
+    static final String MANAGES = "codes.reason.fibre.scope.annotations.Manages";
+    static final String PROVIDES = "codes.reason.fibre.scope.annotations.Provides";
 
     private Annotations() {
     }
@@ -62,6 +64,15 @@ final class Annotations {
     static @Nullable String name(AnnotatedConstruct construct) {
         AnnotationMirror named = find(construct, NAMED);
         return named != null ? (String) value(named, "value") : null;
+    }
+
+    static Object valueWithDefaults(Elements elements, AnnotationMirror annotation, String name) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : elements.getElementValuesWithDefaults(annotation).entrySet()) {
+            if (entry.getKey().getSimpleName().contentEquals(name)) {
+                return entry.getValue().getValue();
+            }
+        }
+        throw new IllegalArgumentException("@%s has no %s".formatted(type(annotation).getSimpleName(), name));
     }
 
     static TypeElement type(AnnotationMirror annotation) {

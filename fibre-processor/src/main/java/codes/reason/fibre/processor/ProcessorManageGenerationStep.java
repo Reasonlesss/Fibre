@@ -34,12 +34,12 @@ import java.util.stream.Stream;
 @NullMarked
 final class ProcessorManageGenerationStep {
 
-    private static final ClassName MANAGES = ClassName.get("codes.reason.fibre.annotations", "Manages");
-    private static final ClassName IDENTITY = ClassName.get("codes.reason.fibre.identity", "Identity");
-    private static final ClassName BOUND_METHOD = ClassName.get("codes.reason.fibre.member", "BoundMethod");
-    private static final ClassName BOUND_FIELD = ClassName.get("codes.reason.fibre.member", "BoundField");
-    private static final ClassName CLASS_IDENTITY = ClassName.get("codes.reason.fibre.identity", "ClassIdentity");
-    private static final ClassName TOKEN_IDENTITY = ClassName.get("codes.reason.fibre.identity", "TokenIdentity");
+    private static final ClassName MANAGES = ClassName.get("codes.reason.fibre.scope.annotations", "Manages");
+    private static final ClassName IDENTITY = ClassName.get("codes.reason.fibre.scope.identity", "Identity");
+    private static final ClassName BOUND_METHOD = ClassName.get("codes.reason.fibre.scope.member", "BoundMethod");
+    private static final ClassName BOUND_FIELD = ClassName.get("codes.reason.fibre.scope.member", "BoundField");
+    private static final ClassName CLASS_IDENTITY = ClassName.get("codes.reason.fibre.scope.identity", "ClassIdentity");
+    private static final ClassName TOKEN_IDENTITY = ClassName.get("codes.reason.fibre.scope.identity", "TokenIdentity");
 
     private final Types types;
     private final ManagedClass managed;
@@ -147,11 +147,10 @@ final class ProcessorManageGenerationStep {
             }
         }
 
-        for (ExecutableElement method : this.managed.enterMethods()) {
-            create.addStatement("builder.enter($N::$N)", instance, method.getSimpleName().toString());
-        }
-        for (ExecutableElement method : this.managed.exitMethods()) {
-            create.addStatement("builder.exit($N::$N)", instance, method.getSimpleName().toString());
+        if (!this.managed.enterMethods().isEmpty() || !this.managed.exitMethods().isEmpty()) {
+            create.addStatement("builder.lifecycle($T.of($L), $T.of($L))",
+                    List.class, this.methodReferences(instance, this.managed.enterMethods()),
+                    List.class, this.methodReferences(instance, this.managed.exitMethods()));
         }
         for (ManagedClass.Queried queried : this.managed.queried()) {
             CodeBlock annotations = queried.annotations().stream()
@@ -164,6 +163,12 @@ final class ProcessorManageGenerationStep {
             }
         }
         return create.addStatement("return $N", instance).build();
+    }
+
+    private CodeBlock methodReferences(String instance, List<ExecutableElement> methods) {
+        return methods.stream()
+                .map(method -> CodeBlock.of("$N::$N", instance, method.getSimpleName().toString()))
+                .collect(CodeBlock.joining(", "));
     }
 
     private static FieldSpec identityField(String name, DeclaredType type, CodeBlock identity) {
