@@ -18,6 +18,7 @@ public final class Game {
     private final GameLifecycle lifecycle;
     private final GameEvents events;
     private final GamePlayers players;
+    private final GameSnapshots snapshots;
     private final List<GameRegion> regions;
 
     Game(Scope scope, GameManager manager) {
@@ -28,6 +29,7 @@ public final class Game {
         this.lifecycle = scope.require(GameLifecycle.class);
         this.events = scope.require(GameEvents.class);
         this.players = scope.require(GamePlayers.class);
+        this.snapshots = scope.require(GameSnapshots.class);
         this.regions = scope.list(GameRegion.class);
     }
 
@@ -53,6 +55,10 @@ public final class Game {
 
     public GamePlayers players() {
         return this.players;
+    }
+
+    public GameSnapshots snapshots() {
+        return this.snapshots;
     }
 
     public List<GameRegion> regions() {

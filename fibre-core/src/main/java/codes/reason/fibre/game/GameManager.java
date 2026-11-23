@@ -23,8 +23,6 @@ public final class GameManager {
     private final Map<UUID, Game> gamesByPlayer = new HashMap<>();
     // each player's state from before they joined any game, given back once they're in none
     private final Map<UUID, PlayerSnapshot> outside = new HashMap<>();
-    // each game's state of the players who left it, given back if they rejoin
-    private final Map<Game, Map<UUID, PlayerSnapshot>> left = new HashMap<>();
     private final PluginManager plugins;
     private final PlayerStates states;
     private final GameRegionIndex regions = new GameRegionIndex();
@@ -79,13 +77,7 @@ public final class GameManager {
             }
         }
         // before the add events, so listeners see the player as this game left them, or fresh
-        Map<UUID, PlayerSnapshot> left = this.left.get(game);
-        PlayerSnapshot snapshot = left != null ? left.remove(playerId) : null;
-        if (snapshot != null) {
-            this.states.restore(player, snapshot);
-        } else {
-            this.states.reset(player);
-        }
+        game.snapshots().apply(player);
         game.players().add(player);
         return true;
     }
@@ -111,7 +103,7 @@ public final class GameManager {
         if (player == null) {
             return null;
         }
-        this.left.computeIfAbsent(game, _ -> new HashMap<>()).put(playerId, this.states.capture(player));
+        game.snapshots().save(player);
         game.players().remove(playerId);
         return player;
     }
@@ -120,6 +112,10 @@ public final class GameManager {
         for (PlayerAdapter<?> player : game.players().all()) {
             this.removePlayer(game, player.id());
         }
+    }
+
+    PlayerStates states() {
+        return this.states;
     }
 
     PluginManager plugins() {
@@ -145,7 +141,6 @@ public final class GameManager {
         Game game = this.games.remove(id);
         if (game != null) {
             this.gamesByPlayer.values().removeIf(value -> value == game);
-            this.left.remove(game);
             this.regions.remove(game);
         }
     }

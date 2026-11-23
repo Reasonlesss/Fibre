@@ -63,6 +63,7 @@ public final class GameBuilder {
              GameExecutor executor = new GameExecutor(Fibre.get().platform().logger());
              GameEvents events = new GameEvents(executor);
              GamePlayers players = new GamePlayers(events);
+             GameSnapshots snapshots = new GameSnapshots(this.manager.states());
              GameLifecycle lifecycle = new GameLifecycle(
                      options.handle(),
                      this.manager,
@@ -79,6 +80,7 @@ public final class GameBuilder {
              options.bind(GameLifecycle.class, lifecycle);
              options.bind(GameEvents.class, events);
              options.bind(GamePlayers.class, players);
+             options.bind(GameSnapshots.class, snapshots);
              options.bind(GameManager.class, this.manager);
 
              // Install global plugins, before any provided ones so they run first
