@@ -1,5 +1,6 @@
 package codes.reason.fibre.platform;
 
+import codes.reason.fibre.Registration;
 import codes.reason.fibre.event.EventOrder;
 import codes.reason.fibre.player.PlayerAdapter;
 import codes.reason.fibre.world.WorldPosition;
@@ -12,7 +13,7 @@ public interface PlatformEvents {
 
     Class<?> baseType();
 
-    <E> PlatformRegistration subscribe(Class<E> eventType, EventOrder order, Consumer<? super E> handler);
+    <E> Registration subscribe(Class<E> eventType, EventOrder order, Consumer<? super E> handler);
 
     Optional<PlayerAdapter<?>> player(Object event);
 

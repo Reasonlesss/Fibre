@@ -19,7 +19,7 @@ final class GameRegionIndex {
 
     private final Map<WorldAdapter<?>, Bucket> worlds = new HashMap<>();
 
-    void add(Game game) {
+    void add(GameHolder game) {
         for (GameRegion region : game.regions()) {
             Bucket bucket = this.worlds.computeIfAbsent(region.world(), _ -> new Bucket());
             Entry entry = new Entry(game, region);
@@ -35,7 +35,7 @@ final class GameRegionIndex {
         }
     }
 
-    void remove(Game game) {
+    void remove(GameHolder game) {
         this.worlds.values().removeIf(bucket -> {
             bucket.unbucketed.removeIf(entry -> entry.game() == game);
             bucket.chunks.values().removeIf(entries -> {
@@ -46,7 +46,7 @@ final class GameRegionIndex {
         });
     }
 
-    Optional<Game> find(WorldPosition position) {
+    Optional<GameHolder> find(WorldPosition position) {
         Bucket bucket = this.worlds.get(position.world());
         if (bucket == null) {
             return Optional.empty();
@@ -95,7 +95,7 @@ final class GameRegionIndex {
         return ((long) x << 32) | (z & 0xFFFFFFFFL);
     }
 
-    private record Entry(Game game, GameRegion region) {}
+    private record Entry(GameHolder game, GameRegion region) {}
 
     private static final class Bucket {
 

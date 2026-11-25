@@ -1,5 +1,6 @@
 package codes.reason.fibre.entity;
 
+import codes.reason.fibre.world.WorldPosition;
 import codes.reason.fibre.Fibre;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +16,8 @@ public interface EntityAdapter<E> {
     E get();
 
     UUID id();
+
+    WorldPosition position();
 
     default <T> Optional<T> as(Class<T> type) {
         E entity = this.get();

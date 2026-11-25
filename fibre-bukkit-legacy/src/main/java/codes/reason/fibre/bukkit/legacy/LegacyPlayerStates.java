@@ -1,8 +1,10 @@
 package codes.reason.fibre.bukkit.legacy;
 
+import codes.reason.fibre.bukkit.Respawns;
 import codes.reason.fibre.platform.PlayerStates;
 import codes.reason.fibre.player.PlayerAdapter;
 import codes.reason.fibre.player.PlayerSnapshot;
+import codes.reason.fibre.world.WorldPosition;
 import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -19,6 +21,12 @@ import org.jspecify.annotations.Nullable;
 // each part captures, applies and resets its own state, and they're applied in an order that keeps them valid
 @NullMarked
 final class LegacyPlayerStates implements PlayerStates {
+
+    private final Respawns respawns;
+
+    LegacyPlayerStates(Respawns respawns) {
+        this.respawns = respawns;
+    }
 
     @Override
     public PlayerSnapshot capture(PlayerAdapter<?> adapter) {
@@ -41,6 +49,18 @@ final class LegacyPlayerStates implements PlayerStates {
             throw new IllegalArgumentException("%s wasn't captured by Bukkit".formatted(snapshot));
         }
         Player player = player(adapter);
+        // respawning would undo it, so it waits for that, and they respawn where the snapshot was
+        if (player.isDead()) {
+            if (state.place().isLoaded()) {
+                this.respawns.respawnAt(player, state.place().location());
+            }
+            this.respawns.afterRespawn(player, respawned -> restore(respawned, state));
+            return;
+        }
+        restore(player, state);
+    }
+
+    private static void restore(Player player, Snapshot state) {
         resetTransient(player);
         state.place().apply(player);
         state.items().apply(player);
@@ -56,6 +76,26 @@ final class LegacyPlayerStates implements PlayerStates {
     @Override
     public void reset(PlayerAdapter<?> adapter) {
         Player player = player(adapter);
+        if (player.isDead()) {
+            this.respawns.afterRespawn(player, LegacyPlayerStates::reset);
+            return;
+        }
+        reset(player);
+    }
+
+    @Override
+    public void place(PlayerAdapter<?> adapter, WorldPosition position) {
+        Player player = player(adapter);
+        Location location = position.as(Location.class)
+                .orElseThrow(() -> new IllegalArgumentException("%s isn't in a Bukkit world".formatted(position)));
+        if (player.isDead()) {
+            this.respawns.respawnAt(player, location);
+        } else {
+            player.teleport(location);
+        }
+    }
+
+    private static void reset(Player player) {
         resetTransient(player);
         Place.reset(player);
         Items.reset(player);
@@ -127,11 +167,13 @@ final class LegacyPlayerStates implements PlayerStates {
             player.setCompassTarget(player.getWorld().getSpawnLocation());
         }
 
+        boolean isLoaded() {
+            return this.location.getWorld() != null && Bukkit.getWorld(this.location.getWorld().getUID()) != null;
+        }
+
         void apply(Player player) {
-            // first of all, since changing world can change other state; skipped if the world's gone
-            if (Bukkit.getWorld(this.location.getWorld().getUID()) != null) {
-                player.teleport(this.location);
-            }
+            // first of all, since changing world can change other state; to the main world if theirs is gone
+            player.teleport(this.isLoaded() ? this.location : Bukkit.getWorlds().getFirst().getSpawnLocation());
             player.setBedSpawnLocation(this.bed, true);
             player.setCompassTarget(this.compass);
         }
@@ -175,7 +217,8 @@ final class LegacyPlayerStates implements PlayerStates {
         @SuppressWarnings("deprecation")
         static Stats capture(Player player) {
             return new Stats(
-                    player.getHealth(),
+                    // a dead player comes back at full health
+                    player.isDead() ? player.getMaxHealth() : player.getHealth(),
                     player.getMaxHealth(),
                     player.getFoodLevel(),
                     player.getSaturation(),
@@ -299,8 +342,13 @@ final class LegacyPlayerStates implements PlayerStates {
             player.setDisplayName(this.displayName);
             player.setPlayerListName(this.listName);
             player.setScoreboard(this.scoreboard);
-            player.setHealthScale(this.healthScale);
-            player.setHealthScaled(this.healthScaled);
+            // setHealthScale also turns scaling on, and some servers warn on every call, so it's only made when
+            // the player should be scaled and isn't already at this scale
+            if (!this.healthScaled) {
+                player.setHealthScaled(false);
+            } else if (!player.isHealthScaled() || player.getHealthScale() != this.healthScale) {
+                player.setHealthScale(this.healthScale);
+            }
             if (this.timeRelative && this.timeOffset == 0) {
                 player.resetPlayerTime();
             } else {

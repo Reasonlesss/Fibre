@@ -15,4 +15,9 @@ import java.lang.annotation.Target;
 public @interface Listen {
 
     EventOrder order() default EventOrder.NORMAL;
+
+    // Every event of the type, not just this game's: platform events that belong to another game or to none (such as
+    // a plugin's own events, which have no player or position), and game events from every game. The scope's filters
+    // are about its own players, so they're skipped.
+    boolean global() default false;
 }

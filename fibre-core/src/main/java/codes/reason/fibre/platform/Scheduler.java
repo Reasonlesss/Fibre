@@ -1,14 +1,15 @@
 package codes.reason.fibre.platform;
 
+import codes.reason.fibre.Registration;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
 public interface Scheduler {
 
-    PlatformRegistration run(Runnable task);
+    Registration run(Runnable task);
 
-    PlatformRegistration runLater(long delayTicks, Runnable task);
+    Registration runLater(long delayTicks, Runnable task);
 
-    PlatformRegistration runRepeating(long delayTicks, long periodTicks, Runnable task);
+    Registration runRepeating(long delayTicks, long periodTicks, Runnable task);
 
 }

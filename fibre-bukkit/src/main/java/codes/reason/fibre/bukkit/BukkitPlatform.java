@@ -24,15 +24,22 @@ public final class BukkitPlatform implements FibrePlatform {
     private final BukkitEvents events;
     private final BukkitTasks scheduler;
     private final PlayerStates playerStates;
+    private final Respawns respawns;
     private final boolean audiences;
 
-    public BukkitPlatform(JavaPlugin plugin, EventLookup lookup, PlayerStates playerStates, ToIntFunction<World> minHeight, boolean audiences) {
+    public BukkitPlatform(JavaPlugin plugin, EventLookup lookup, PlayerStates playerStates, Respawns respawns, ToIntFunction<World> minHeight, boolean audiences) {
         this.plugin = plugin;
+        this.respawns = respawns;
         this.audiences = audiences;
         this.playerStates = playerStates;
         this.adapters = new BukkitAdapters(minHeight);
         this.events = new BukkitEvents(plugin, lookup, this.adapters);
         this.scheduler = new BukkitTasks(plugin);
+    }
+
+    // registered by the plugin, so state set on dead players survives their respawn
+    public Respawns respawns() {
+        return this.respawns;
     }
 
     // whether players are Adventure audiences, so AudiencePlugin can be installed

@@ -29,14 +29,15 @@ public final class GameSnapshots {
         this.left.put(player.id(), this.states.capture(player));
     }
 
-    // the player as this game left them, or fresh if they've never played it
-    void apply(PlayerAdapter<?> player) {
+    // the player as this game left them, or fresh if they've never played it; true if they were restored
+    boolean apply(PlayerAdapter<?> player) {
         PlayerSnapshot snapshot = this.left.remove(player.id());
         if (snapshot != null) {
             this.states.restore(player, snapshot);
-        } else {
-            this.states.reset(player);
+            return true;
         }
+        this.states.reset(player);
+        return false;
     }
 
 }

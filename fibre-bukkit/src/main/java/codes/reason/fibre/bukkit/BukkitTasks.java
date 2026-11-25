@@ -1,6 +1,6 @@
 package codes.reason.fibre.bukkit;
 
-import codes.reason.fibre.platform.PlatformRegistration;
+import codes.reason.fibre.Registration;
 import codes.reason.fibre.platform.Scheduler;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -16,22 +16,22 @@ final class BukkitTasks implements Scheduler {
     }
 
     @Override
-    public PlatformRegistration run(Runnable task) {
+    public Registration run(Runnable task) {
         return this.register(this.plugin.getServer().getScheduler().runTask(this.plugin, task));
     }
 
     @Override
-    public PlatformRegistration runLater(long delayTicks, Runnable task) {
+    public Registration runLater(long delayTicks, Runnable task) {
         return this.register(this.plugin.getServer().getScheduler().runTaskLater(this.plugin, task, delayTicks));
     }
 
     @Override
-    public PlatformRegistration runRepeating(long delayTicks, long periodTicks, Runnable task) {
+    public Registration runRepeating(long delayTicks, long periodTicks, Runnable task) {
         return this.register(this.plugin.getServer().getScheduler().runTaskTimer(this.plugin, task, delayTicks, periodTicks));
     }
 
-    private PlatformRegistration register(BukkitTask task) {
-        return new PlatformRegistration() {
+    private Registration register(BukkitTask task) {
+        return new Registration() {
             @Override
             public void unregister() {
                 task.cancel();

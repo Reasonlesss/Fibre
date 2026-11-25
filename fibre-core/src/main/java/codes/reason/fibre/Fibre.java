@@ -1,5 +1,6 @@
 package codes.reason.fibre;
 
+import codes.reason.fibre.game.FibreEvents;
 import codes.reason.fibre.game.GameManager;
 import codes.reason.fibre.plugin.PluginManager;
 import codes.reason.fibre.platform.FibrePlatform;
@@ -15,6 +16,11 @@ public interface Fibre {
     GameManager games();
 
     PluginManager plugins();
+
+    // every game's events, with the game each came from
+    default FibreEvents events() {
+        return this.games().events();
+    }
 
     FibrePlatform platform();
 

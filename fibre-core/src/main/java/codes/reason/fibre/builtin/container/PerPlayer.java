@@ -1,5 +1,6 @@
 package codes.reason.fibre.builtin.container;
 
+import codes.reason.fibre.Registration;
 import codes.reason.fibre.game.GameEvents;
 import codes.reason.fibre.game.GamePlayers;
 import codes.reason.fibre.event.EventOrder;
@@ -29,7 +30,7 @@ public final class PerPlayer<T> implements Iterable<T> {
     private final ScopedValues<T> values;
     private final GamePlayers players;
     private final GameEvents events;
-    private final List<GameEvents.Registration<?>> registrations = new ArrayList<>();
+    private final List<Registration> registrations = new ArrayList<>();
 
     @Use
     PerPlayer(Identity<PerPlayer<T>> identity, Handle<Scope> owner, GamePlayers players, GameEvents events) {
@@ -57,8 +58,8 @@ public final class PerPlayer<T> implements Iterable<T> {
 
     @Exit
     void exit() {
-        for (GameEvents.Registration<?> registration : this.registrations) {
-            registration.close();
+        for (Registration registration : this.registrations) {
+            registration.unregister();
         }
         this.registrations.clear();
         this.values.clear();

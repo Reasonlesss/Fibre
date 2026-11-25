@@ -1,7 +1,7 @@
 package codes.reason.fibre.builtin.event;
 
 import codes.reason.fibre.Fibre;
-import codes.reason.fibre.game.Game;
+import codes.reason.fibre.game.GameHolder;
 import codes.reason.fibre.game.GameManager;
 import codes.reason.fibre.player.PlayerAdapter;
 import codes.reason.fibre.platform.PlatformEvents;
@@ -22,7 +22,7 @@ final class EventOwners {
             this.origin = resolve(fibre, event);
             this.event = new WeakReference<>(event);
         }
-        Game game = this.origin.game();
+        GameHolder game = this.origin.game();
         return game != null && game.lifecycle().isClosed() ? new Origin(this.origin.player(), null) : this.origin;
     }
 
@@ -36,6 +36,6 @@ final class EventOwners {
         return new Origin(null, events.position(event).flatMap(games::findByPosition).orElse(null));
     }
 
-    record Origin(@Nullable PlayerAdapter<?> player, @Nullable Game game) {}
+    record Origin(@Nullable PlayerAdapter<?> player, @Nullable GameHolder game) {}
 
 }

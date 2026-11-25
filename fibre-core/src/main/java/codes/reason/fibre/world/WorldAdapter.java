@@ -15,9 +15,16 @@ public interface WorldAdapter<W> {
 
     Object location(double x, double y, double z);
 
+    default Object location(double x, double y, double z, float yaw, float pitch) {
+        return this.location(x, y, z);
+    }
+
     int minHeight();
 
     int maxHeight();
+
+    // the world's own spawn point
+    WorldPosition spawn();
 
     default <T> Optional<T> as(Class<T> type) {
         W world = this.get();

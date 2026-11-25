@@ -50,7 +50,7 @@ public final class GameBuilder {
         return this;
     }
 
-     public Game build() {
+     public GameHolder build() {
          this.ensureNotBuilt();
          Class<?> type = this.type;
          if (type == null) {
@@ -61,7 +61,7 @@ public final class GameBuilder {
              // Initialize game components
              GameIdentity identity = GameIdentity.random(type);
              GameExecutor executor = new GameExecutor(Fibre.get().platform().logger());
-             GameEvents events = new GameEvents(executor);
+             GameEvents events = new GameEvents(executor, this.manager.events());
              GamePlayers players = new GamePlayers(events);
              GameSnapshots snapshots = new GameSnapshots(this.manager.states());
              GameLifecycle lifecycle = new GameLifecycle(
@@ -94,7 +94,7 @@ public final class GameBuilder {
              // checked before the scope is built, so a game overlapping a running one never enters
              this.manager.ensureNoOverlap(identity, options.values(GameRegion.class));
          });
-         Game game = new Game(scope, this.manager);
+         GameHolder game = new GameHolder(scope, this.manager);
          if (!game.lifecycle().isClosed()) {
              try {
                  this.manager.register(game);

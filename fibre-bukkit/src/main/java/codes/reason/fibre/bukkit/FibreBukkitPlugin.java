@@ -2,7 +2,7 @@ package codes.reason.fibre.bukkit;
 
 import codes.reason.fibre.FibreHolder;
 import codes.reason.fibre.builtin.audience.AudiencePlugin;
-import codes.reason.fibre.game.Game;
+import codes.reason.fibre.game.GameHolder;
 import codes.reason.fibre.game.GameManager;
 import codes.reason.fibre.plugin.PluginManager;
 import java.util.logging.Level;
@@ -35,6 +35,7 @@ public final class FibreBukkitPlugin extends JavaPlugin {
         BukkitFibre fibre = this.fibre;
         if (fibre != null) {
             this.getServer().getPluginManager().registerEvents(new QuitListener(fibre.games()), this);
+            this.getServer().getPluginManager().registerEvents(fibre.platform().respawns(), this);
         }
     }
 
@@ -44,7 +45,7 @@ public final class FibreBukkitPlugin extends JavaPlugin {
         if (fibre == null) {
             return;
         }
-        for (Game game : fibre.games().games()) {
+        for (GameHolder game : fibre.games().games()) {
             try {
                 game.lifecycle().close();
             } catch (RuntimeException exception) {

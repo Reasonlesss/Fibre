@@ -20,48 +20,54 @@ import org.jspecify.annotations.Nullable;
 @NullMarked
 public final class GameManager {
 
-    private final Map<UUID, Game> games = new LinkedHashMap<>();
-    private final Map<UUID, Game> gamesByPlayer = new HashMap<>();
+    private final Map<UUID, GameHolder> games = new LinkedHashMap<>();
+    private final Map<UUID, GameHolder> gamesByPlayer = new HashMap<>();
     // each player's state from before they joined any game, given back once they're in none
     private final Map<UUID, PlayerSnapshot> outside = new HashMap<>();
     private final PluginManager plugins;
     private final PlayerStates states;
     private final GameRegionIndex regions = new GameRegionIndex();
+    private final FibreEvents events = new FibreEvents();
 
     public GameManager(PluginManager plugins, PlayerStates states) {
         this.plugins = Objects.requireNonNull(plugins, "plugins must not be null");
         this.states = Objects.requireNonNull(states, "states must not be null");
     }
 
+    // every game's events, with the game each came from
+    public FibreEvents events() {
+        return this.events;
+    }
+
     public GameBuilder create() {
         return new GameBuilder(this);
     }
 
-    public List<Game> games() {
+    public List<GameHolder> games() {
         return List.copyOf(this.games.values());
     }
 
-    public Optional<Game> find(UUID id) {
+    public Optional<GameHolder> find(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
         return Optional.ofNullable(this.games.get(id));
     }
 
-    public Optional<Game> findByPlayer(UUID playerId) {
+    public Optional<GameHolder> findByPlayer(UUID playerId) {
         Objects.requireNonNull(playerId, "playerId must not be null");
         return Optional.ofNullable(this.gamesByPlayer.get(playerId));
     }
 
-    public Optional<Game> findByPosition(WorldPosition position) {
+    public Optional<GameHolder> findByPosition(WorldPosition position) {
         Objects.requireNonNull(position, "position must not be null");
         return this.regions.find(position);
     }
 
-    JoinResult addPlayer(Game game, PlayerAdapter<?> player) {
+    JoinResult addPlayer(GameHolder game, PlayerAdapter<?> player) {
         if (game.lifecycle().isClosed() || !this.games.containsKey(game.identity().id())) {
             throw new IllegalStateException("Can't add a player to %s as it isn't running".formatted(game));
         }
         UUID playerId = player.id();
-        Game previous = this.gamesByPlayer.get(playerId);
+        GameHolder previous = this.gamesByPlayer.get(playerId);
         if (previous == game) {
             return new JoinResult.AlreadyIn();
         }
@@ -93,13 +99,17 @@ public final class GameManager {
                 return new JoinResult.Redirected();
             }
         }
-        // before the add events, so listeners see the player as this game left them, or fresh
-        game.snapshots().apply(player);
+        // before the add events, so listeners see the player as this game left them, or fresh, and in its space
+        boolean restored = game.snapshots().apply(player);
+        // a returning player stays where they left, unless that's gone or outside the game
+        if (!restored || !game.contains(player.position())) {
+            this.states.place(player, game.spawn(player));
+        }
         game.players().add(player);
         return new JoinResult.Joined();
     }
 
-    boolean removePlayer(Game game, UUID playerId) {
+    boolean removePlayer(GameHolder game, UUID playerId) {
         if (!this.gamesByPlayer.remove(playerId, game)) {
             return false;
         }
@@ -115,7 +125,7 @@ public final class GameManager {
     }
 
     // saved before the remove events, so it's the player as the game had them
-    private @Nullable PlayerAdapter<?> leave(Game game, UUID playerId) {
+    private @Nullable PlayerAdapter<?> leave(GameHolder game, UUID playerId) {
         PlayerAdapter<?> player = game.players().get(playerId).orElse(null);
         if (player == null) {
             return null;
@@ -125,7 +135,7 @@ public final class GameManager {
         return player;
     }
 
-    void release(Game game) {
+    void release(GameHolder game) {
         for (PlayerAdapter<?> player : game.players().all()) {
             this.removePlayer(game, player.id());
         }
@@ -145,7 +155,7 @@ public final class GameManager {
         }
     }
 
-    void register(Game game) {
+    void register(GameHolder game) {
         UUID id = game.identity().id();
         if (this.games.containsKey(id)) {
             throw new IllegalStateException("A game with id %s is already registered".formatted(id));
@@ -155,7 +165,7 @@ public final class GameManager {
     }
 
     void unregister(UUID id) {
-        Game game = this.games.remove(id);
+        GameHolder game = this.games.remove(id);
         if (game != null) {
             this.gamesByPlayer.values().removeIf(value -> value == game);
             this.regions.remove(game);

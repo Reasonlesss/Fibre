@@ -31,7 +31,14 @@ public final class EventPlugin implements ScopePlugin {
 
         for (BoundMethod method : setup.localMethods(Listen.class)) {
             Class<?> type = method.method().getParameterTypes()[0];
-            EventOrder order = method.method().getAnnotation(Listen.class).order();
+            Listen listen = method.method().getAnnotation(Listen.class);
+            EventOrder order = listen.order();
+            if (listen.global() && GameEvent.class.isAssignableFrom(type)) {
+                // run in the firing game's executor, which reports a failure to that game
+                setup.closeable(fibre.events().register(type.asSubclass(GameEvent.class), order,
+                        (_, event) -> method.invoke(event)));
+                continue;
+            }
             if (GameEvent.class.isAssignableFrom(type)) {
                 setup.closeable(gameEvents.register(type.asSubclass(GameEvent.class), order,
                         event -> {
@@ -50,6 +57,10 @@ public final class EventPlugin implements ScopePlugin {
             setup.closeable(platform.events().subscribe(type, order, (Object event) -> {
                 // game state is single threaded, so async events are ignored
                 if (!platform.isServerThread()) {
+                    return;
+                }
+                if (listen.global()) {
+                    executor.execute(() -> method.invoke(event));
                     return;
                 }
                 EventOwners.Origin origin = this.owners.origin(fibre, event);

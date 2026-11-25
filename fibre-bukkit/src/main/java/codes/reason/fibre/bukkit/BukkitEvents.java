@@ -1,10 +1,10 @@
 package codes.reason.fibre.bukkit;
 
+import codes.reason.fibre.Registration;
 import codes.reason.fibre.event.EventOrder;
 import codes.reason.fibre.player.PlayerAdapter;
 import codes.reason.fibre.world.WorldPosition;
 import codes.reason.fibre.platform.PlatformEvents;
-import codes.reason.fibre.platform.PlatformRegistration;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.bukkit.event.Event;
@@ -33,11 +33,11 @@ final class BukkitEvents implements PlatformEvents {
     }
 
     @Override
-    public <E> PlatformRegistration subscribe(Class<E> eventType, EventOrder order, Consumer<? super E> handler) {
+    public <E> Registration subscribe(Class<E> eventType, EventOrder order, Consumer<? super E> handler) {
         if (!Event.class.isAssignableFrom(eventType)) {
             throw new IllegalArgumentException("%s is not a Bukkit event".formatted(eventType.getName()));
         }
-        Registration registration = new Registration();
+        BukkitRegistration registration = new BukkitRegistration();
         this.plugin.getServer().getPluginManager().registerEvent(
                 eventType.asSubclass(Event.class),
                 registration,
@@ -75,7 +75,7 @@ final class BukkitEvents implements PlatformEvents {
         };
     }
 
-    private static final class Registration implements Listener, PlatformRegistration {
+    private static final class BukkitRegistration implements Listener, Registration {
 
         private boolean registered = true;
 

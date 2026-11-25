@@ -1,11 +1,13 @@
 package codes.reason.fibre.game;
 
+import codes.reason.fibre.event.GameTerminateEvent;
 import codes.reason.fibre.scope.Handle;
 import codes.reason.fibre.scope.Scope;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public final class GameLifecycle {
@@ -44,7 +46,7 @@ public final class GameLifecycle {
                 this.executor.execute(() -> listener.invoke(result));
             }
         } finally {
-            this.shutdown();
+            this.shutdown(result);
         }
     }
 
@@ -53,11 +55,13 @@ public final class GameLifecycle {
             return;
         }
         this.closed = true;
-        this.shutdown();
+        this.shutdown(null);
     }
 
-    private void shutdown() {
+    private void shutdown(@Nullable Object result) {
         List<Throwable> failures = new ArrayList<>();
+        // before anyone leaves, so listeners still see who was playing
+        step(failures, () -> this.events.call(new GameTerminateEvent(result)));
         // players get back their state from before the game, then the closed game takes no more
         step(failures, () -> this.manager.find(this.identity.id()).ifPresent(this.manager::release));
         step(failures, this.players::close);

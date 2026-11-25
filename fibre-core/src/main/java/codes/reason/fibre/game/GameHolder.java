@@ -2,6 +2,8 @@ package codes.reason.fibre.game;
 
 import codes.reason.fibre.player.PlayerAdapter;
 import codes.reason.fibre.world.GameRegion;
+import codes.reason.fibre.world.GameSpawn;
+import codes.reason.fibre.world.WorldPosition;
 import codes.reason.fibre.scope.Scope;
 import java.util.List;
 import java.util.Objects;
@@ -9,7 +11,7 @@ import java.util.UUID;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
-public final class Game {
+public final class GameHolder {
 
     private final GameManager manager;
     private final GameIdentity identity;
@@ -21,7 +23,7 @@ public final class Game {
     private final GameSnapshots snapshots;
     private final List<GameRegion> regions;
 
-    Game(Scope scope, GameManager manager) {
+    GameHolder(Scope scope, GameManager manager) {
         this.scope = scope;
         this.manager = manager;
         this.identity = scope.require(GameIdentity.class);
@@ -31,6 +33,7 @@ public final class Game {
         this.players = scope.require(GamePlayers.class);
         this.snapshots = scope.require(GameSnapshots.class);
         this.regions = scope.list(GameRegion.class);
+        this.events.attach(this);
     }
 
     public GameIdentity identity() {
@@ -63,6 +66,28 @@ public final class Game {
 
     public List<GameRegion> regions() {
         return this.regions;
+    }
+
+    public boolean contains(WorldPosition position) {
+        Objects.requireNonNull(position, "position must not be null");
+        for (GameRegion region : this.regions) {
+            if (region.contains(position)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // where the player goes when they join fresh or respawn here
+    public WorldPosition spawn(PlayerAdapter<?> player) {
+        Objects.requireNonNull(player, "player must not be null");
+        GameSpawn spawn = this.scope.get(GameSpawn.class).orElse(null);
+        if (spawn != null) {
+            return spawn.spawn(player);
+        }
+        GameRegion region = this.regions.getFirst();
+        WorldPosition worldSpawn = region.world().spawn();
+        return this.contains(worldSpawn) ? worldSpawn : region.center();
     }
 
     public JoinResult addPlayer(PlayerAdapter<?> player) {
